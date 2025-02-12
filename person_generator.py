@@ -1,12 +1,6 @@
+from person import Person
 import random
 import faker
-from dataclasses import dataclass
-
-
-@dataclass
-class Person:
-    name: str
-    cpf: str
 
 
 class PersonGenerator:
