@@ -8,7 +8,6 @@ class PersonGenerator:
         self.faker = faker.Faker()
 
     def generate_person(self) -> Person:
-        print(self.__generate_name())
         return Person(name=self.__generate_name(), cpf=self.__generate_cpf())
 
     def __generate_name(self) -> str:
