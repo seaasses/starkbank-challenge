@@ -21,7 +21,6 @@ def construct_private_key(ec_parameters: str, ec_private_key: str):
 
 class Config:
     def __init__(self):
-
         self.starkbank_project = starkbank.Project(
             environment=os.getenv("STARK_ENVIRONMENT"),
             id=os.getenv("STARK_PROJECT_ID"),
@@ -32,4 +31,4 @@ class Config:
         )
 
 
-config = Config()
+config = Config() 

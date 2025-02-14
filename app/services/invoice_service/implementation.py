@@ -1,12 +1,11 @@
 import starkbank
-from invoice_sender import InvoiceSender
-from invoice import Invoice
+from app.models.types import Invoice
+from app.services.invoice_service.interface import InvoiceSender
 
 
 class StarkBankInvoiceSender(InvoiceSender):
     def __init__(self, starkbank_project: starkbank.Project):
         self.starkbank_project = starkbank_project
-        super().__init__()
 
     def send(self, invoice: Invoice):
         stark_invoice = self.__convert_to_starkbank_invoice(invoice)
@@ -19,3 +18,4 @@ class StarkBankInvoiceSender(InvoiceSender):
             tax_id=invoice.person.cpf,
             due=invoice.due_date,
         )
+

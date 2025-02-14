@@ -1,6 +1,14 @@
-from pydantic import BaseModel, field_validator, Field
+from pydantic import BaseModel
 from enum import Enum
+from pydantic import Field, field_validator
 import re
+from datetime import date
+from typing import Optional
+
+
+class Person(BaseModel):
+    name: str = Field(min_length=1)
+    cpf: str  # TODO add validator
 
 
 class AccountType(str, Enum):
@@ -25,3 +33,14 @@ class Account(BaseModel):
                 "Invalid account number. Should be 1 to 20 digits or 1 to 19 digits with an hyphen and more 1 digit."
             )
         return value
+
+
+class Transfer(BaseModel):
+    account: Account
+    amount: int  # TODO maybe create the Amount class that have a decimal value? This is RRRRCC. R - real, C - cents
+
+
+class Invoice(BaseModel):
+    amount: int = Field(gt=0)
+    person: Person
+    due_date: Optional[date] = None
