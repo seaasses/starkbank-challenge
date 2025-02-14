@@ -1,6 +1,6 @@
-from transfer_sender import TransferSender
-from transfer import Transfer
 import starkbank
+from app.models.types import Transfer
+from app.services.transfer_service.interface import TransferSender
 
 
 class StarkBankTransferSender(TransferSender):
