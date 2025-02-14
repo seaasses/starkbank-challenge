@@ -6,9 +6,12 @@ ENV ENVIRONMENT=development
 
 RUN apt-get update && apt-get install -y curl
 
+ADD --chmod=755 https://astral.sh/uv/install.sh /install.sh
+RUN /install.sh && rm /install.sh
+
 COPY requirements.txt .
 
-RUN pip install -r requirements.txt
+RUN /root/.local/bin/uv pip install -r requirements.txt --system
 
 EXPOSE 8000
 
