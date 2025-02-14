@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from app.models.types import Invoice
 from app.services.invoice_service.implementation import StarkBankInvoiceSender
 from app.services.invoice_service.interface import InvoiceSender
-from app.core.config import config
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -20,7 +20,7 @@ def get_invoice_sender(schema: InvoiceRequest) -> StarkBankInvoiceSender:
             status_code=400,
             detail="Invalid bank. Only 'starkbank' is supported at the moment.",
         )
-    return StarkBankInvoiceSender(config.starkbank_project)
+    return StarkBankInvoiceSender(settings.starkbank_project)
 
 
 @router.post("/")
