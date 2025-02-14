@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.api.v1.endpoints import invoices
+from app.api.v1.endpoints import webhooks
 
 app = FastAPI(
     title="Stark Bank Challenge API",
@@ -9,6 +10,8 @@ app = FastAPI(
 
 # Include routers
 app.include_router(invoices.router, prefix="/api/v1/invoices", tags=["invoices"])
+app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
+
 
 if __name__ == "__main__":
     import uvicorn
