@@ -1,10 +1,9 @@
 import starkbank
-from app.services.event_service.interface import EventFetcher
 from app.models.types import StarkBankEvent
 from typing import Generator
 
 
-class StarkBankEventFetcher(EventFetcher):
+class StarkBankEventFetcher:
     def __init__(self, starkbank_project: starkbank.Project):
         self.starkbank_project = starkbank_project
 
@@ -55,3 +54,11 @@ class StarkBankEventFetcher(EventFetcher):
             subscription=starkbank_event.subscription,
             workspaceId=starkbank_event.workspace_id,
         )
+
+
+class StarkBankEventStatusChanger:
+    def __init__(self, starkbank_project: starkbank.Project):
+        self.starkbank_project = starkbank_project
+
+    def mark_as_delivered(self, event_id: str) -> None:
+        starkbank.event.update(event_id, is_delivered=True, user=self.starkbank_project)
