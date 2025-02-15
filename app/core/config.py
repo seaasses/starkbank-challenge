@@ -1,7 +1,9 @@
 from typing import Literal
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 import starkbank
+from app.models.types import Account, AccountType
 
 load_dotenv()
 
@@ -27,6 +29,28 @@ class Settings(BaseSettings):
     STARKBANK_EC_PARAMETERS: str
     STARKBANK_EC_PRIVATE_KEY: str
     API_EXTERNAL_URL: str
+    DEFAULT_BANK_CODE: str = Field(default="20018183")
+    DEFAULT_BRANCH: str = Field(default="0001")
+    DEFAULT_ACCOUNT: str = Field(default="6341320293482496")
+    DEFAULT_NAME: str = Field(default="Stark Bank S.A.")
+    DEFAULT_TAX_ID: str = Field(default="20.018.183/0001-80")
+    DEFAULT_ACCOUNT_TYPE: AccountType = Field(default="payment")
+
+    @model_validator(mode="after")
+    def validate_default_account(self):
+        self.default_account
+        return self
+
+    @property
+    def default_account(self) -> Account:
+        return Account(
+            bank_code=self.DEFAULT_BANK_CODE,
+            branch=self.DEFAULT_BRANCH,
+            account=self.DEFAULT_ACCOUNT,
+            name=self.DEFAULT_NAME,
+            tax_id=self.DEFAULT_TAX_ID,
+            account_type=self.DEFAULT_ACCOUNT_TYPE,
+        )
 
     @property
     def starkbank_invoices_webhook_url(self) -> str:
