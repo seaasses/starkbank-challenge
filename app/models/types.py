@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from enum import Enum
 from pydantic import Field, field_validator
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, Literal
 
 
@@ -85,7 +85,7 @@ class StarkBankInvoiceEventLog(BaseModel):
 
 
 class _StarkBankInvoiceEvent(BaseModel):
-    created: str
+    created: datetime
     id: str
     log: StarkBankInvoiceEventLog
     subscription: Literal["invoice"]
