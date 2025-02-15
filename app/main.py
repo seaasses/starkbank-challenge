@@ -4,6 +4,12 @@ from app.api.v1.endpoints import webhooks
 import starkbank
 from app.core.config import settings
 from contextlib import asynccontextmanager
+from apscheduler.schedulers.background import BackgroundScheduler
+from app.jobs.transfer_starkbank_undelivered_credited_invoices import (
+    transfer_starkbank_undelivered_credited_invoices,
+)
+
+scheduler = BackgroundScheduler()
 
 
 @asynccontextmanager
@@ -30,11 +36,20 @@ async def lifespan(app: FastAPI):
     else:
         print("Starkbank invoices webhook url:", webhook_url)
 
+    # 01:00 AM (UTC-3)
+    # TODO: as env variable
+    scheduler.add_job(
+        transfer_starkbank_undelivered_credited_invoices, "cron", hour=1, timezone="America/Sao_Paulo"
+    )
+    scheduler.start()
+
     yield
 
     if settings.ENVIRONMENT == "development":
         print("Cleaning up Starkbank Invoices Webhook")
         starkbank.webhook.delete(webhook_id)
+
+    scheduler.shutdown()
 
 
 app = FastAPI(
