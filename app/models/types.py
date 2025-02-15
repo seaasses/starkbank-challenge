@@ -37,11 +37,11 @@ class Account(BaseModel):
 
 class Transfer(BaseModel):
     account: Account
-    amount: int  # TODO maybe create the Amount class that have a decimal value? This is RRRRCC. R - real, C - cents
+    amount: int = Field(gt=0, lt=10000000000)
 
 
 class Invoice(BaseModel):
-    amount: int = Field(gt=0)
+    amount: int = Field(gt=0, lt=10000000000)
     person: Person
     due_date: Optional[date] = None
 
