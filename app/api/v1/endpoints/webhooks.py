@@ -58,7 +58,7 @@ async def starkbank_webhook(
     schema: WebhookRequest,
     transfer_sender: TransferSender = Depends(get_transfer_sender),
 ) -> None:
-    if schema.event.subscription != "invoice":
+    if schema.event.subscription != "invoice" or schema.event.log["type"] != "credited":
         return
 
     transfer_amount = (
