@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
+from functools import lru_cache
 
 from app.models.types import Transfer
 from app.core.config import settings
@@ -16,7 +17,17 @@ class TransferRequest(BaseModel):
     bank: str
 
 
-async def valid_signature(request: Request, schema: StarkBankInvoiceEvent):
+@lru_cache(maxsize=1)
+def get_signature_verifier():
+    # use the same instance for all requests
+    return StarkBankSignatureVerifier(settings.starkbank_project)
+
+
+async def valid_signature(
+    request: Request,
+    schema: StarkBankInvoiceEvent,
+    signature_verifier=Depends(get_signature_verifier),
+):
     signature = request.headers.get("Digital-Signature")
     if not signature:
         raise HTTPException(
@@ -25,11 +36,10 @@ async def valid_signature(request: Request, schema: StarkBankInvoiceEvent):
 
     request_body = await request.body()
 
-    signature_verifier = StarkBankSignatureVerifier(settings.starkbank_project)
     if not signature_verifier.check_signature(
         request_body, signature, schema.event.created
     ):
-        raise HTTPException(status_code=401, detail="Unauthorized:Invalid signature")
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid signature")
 
 
 @router.post(
