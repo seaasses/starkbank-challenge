@@ -31,9 +31,10 @@ class StarkBankSignatureVerifier:
             return False
 
     def __get_public_key(self, signature_datetime: datetime):
-        return self.public_keys[0][
-            "content"
-        ]  # TODO: use the datetime to get the correct key
+        for key in self.public_keys:
+            if key["created"] <= signature_datetime:
+                return key["content"]
+        raise Exception("No valid public key found for the signature datetime")
 
     def __get_public_keys(self):
         response = requests.get(f"{self.api_url}/v2/public-key")
