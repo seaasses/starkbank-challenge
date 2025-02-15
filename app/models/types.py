@@ -46,13 +46,9 @@ class Invoice(BaseModel):
     due_date: Optional[date] = None
 
 
-class _StarkBankEvent(BaseModel):
+class StarkBankEvent(BaseModel):
     created: datetime
     id: str
     log: dict  # TODO: create log models
     subscription: str
     workspaceId: str
-
-
-class StarkBankEvent(BaseModel):
-    event: _StarkBankEvent
