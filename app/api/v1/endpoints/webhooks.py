@@ -2,12 +2,13 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from functools import lru_cache
 
-from app.models.types import Transfer
+from app.models.types import Transfer, StarkBankInvoiceEvent, Transfer, Account
 from app.core.config import settings
-from app.models.types import StarkBankInvoiceEvent
 from app.services.starkbank_signature_verifier.implementation import (
     StarkBankSignatureVerifier,
 )
+from app.services.transfer_service.interface import TransferSender
+from app.services.transfer_service.implementation import StarkBankTransferSender
 
 router = APIRouter()
 
@@ -21,6 +22,14 @@ class TransferRequest(BaseModel):
 def get_signature_verifier():
     # use the same instance for all requests
     return StarkBankSignatureVerifier(settings.starkbank_project)
+
+
+def get_transfer_sender() -> TransferSender:
+    default_account = settings.default_account
+    if default_account.bank_code == "20018183":
+        return StarkBankTransferSender(settings.starkbank_project)
+    else:
+        raise HTTPException(status_code=400, detail="Bank not supported")
 
 
 async def valid_signature(
@@ -47,8 +56,15 @@ async def valid_signature(
     dependencies=[Depends(valid_signature)],
 )
 async def starkbank_invoices_webhook(
-    request: Request,
     schema: StarkBankInvoiceEvent,
+    transfer_sender: TransferSender = Depends(get_transfer_sender),
 ) -> None:
-    # TODO: implement the logic to handle the event
-    print(f"evento {schema} recebido e validado")
+    transfer_amount = schema.event.log.invoice.amount - schema.event.log.invoice.fee
+
+    transfer = Transfer(
+        account=settings.default_account,
+        amount=transfer_amount,
+    )
+
+    transfer_sender: TransferSender = get_transfer_sender()
+    transfer_sender.send(transfer)
