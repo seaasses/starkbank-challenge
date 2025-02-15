@@ -1,3 +1,4 @@
+from typing import Literal
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 import starkbank
@@ -20,10 +21,16 @@ def construct_private_key(ec_parameters: str, ec_private_key: str) -> str:
 
 
 class Settings(BaseSettings):
-    STARK_ENVIRONMENT: str
+    ENVIRONMENT: Literal["development", "production"]
+    STARK_ENVIRONMENT: Literal["sandbox", "production"]
     STARK_PROJECT_ID: str
     STARKBANK_EC_PARAMETERS: str
     STARKBANK_EC_PRIVATE_KEY: str
+    API_EXTERNAL_URL: str
+
+    @property
+    def starkbank_invoices_webhook_url(self) -> str:
+        return f"{self.API_EXTERNAL_URL}/api/v1/webhooks/starkbank/invoices"
 
     @property
     def starkbank_project(self) -> starkbank.Project:
