@@ -54,7 +54,7 @@ class Settings(BaseSettings):
 
     @property
     def starkbank_invoices_webhook_url(self) -> str:
-        return f"{self.API_EXTERNAL_URL}/api/v1/webhooks/starkbank/invoices"
+        return f"{self.API_EXTERNAL_URL}/api/v1/webhooks/starkbank"
 
     @property
     def starkbank_project(self) -> starkbank.Project:

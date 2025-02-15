@@ -52,7 +52,7 @@ async def valid_signature(
 
 
 @router.post(
-    "/starkbank/invoices",
+    "/starkbank",
     dependencies=[Depends(valid_signature)],
 )
 async def starkbank_invoices_webhook(
