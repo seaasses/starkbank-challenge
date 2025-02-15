@@ -1,8 +1,10 @@
 annotated-types==0.7.0
 anyio==4.8.0
 certifi==2025.1.31
+cffi==1.17.1
 charset-normalizer==3.4.1
 click==8.1.8
+cryptography==44.0.1
 exceptiongroup==1.2.2
 faker==36.1.0
 fastapi==0.115.8
@@ -12,6 +14,7 @@ iniconfig==2.0.0
 packaging==24.2
 pip==25.0.1
 pluggy==1.5.0
+pycparser==2.22
 pydantic==2.10.6
 pydantic-core==2.27.2
 pydantic-settings==2.2.1
