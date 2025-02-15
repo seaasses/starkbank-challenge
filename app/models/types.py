@@ -46,51 +46,13 @@ class Invoice(BaseModel):
     due_date: Optional[date] = None
 
 
-class StarkBankInvoice(BaseModel):
-    amount: int
-    brcode: str
-    created: str
-    descriptions: list[str]
-    discountAmount: int
-    discounts: list[str]
-    displayDescription: str
-    due: str
-    expiration: int
-    fee: int
-    fine: float
-    fineAmount: float
-    id: str
-    interest: float
-    interestAmount: float
-    link: str
-    name: str
-    nominalAmount: int
-    pdf: str
-    rules: list[str]
-    splits: list[str]
-    status: str
-    tags: list[str]
-    taxId: str
-    transactionIds: list[str]
-    updated: str
-
-
-class StarkBankInvoiceEventLog(BaseModel):
-    authentication: str
-    created: str
-    errors: list[str]
-    id: str
-    invoice: StarkBankInvoice
-    type: Literal["created", "credited", "paid"]  # TODO see in the docs all the types
-
-
-class _StarkBankInvoiceEvent(BaseModel):
+class _StarkBankEvent(BaseModel):
     created: datetime
     id: str
-    log: StarkBankInvoiceEventLog
-    subscription: Literal["invoice"]
+    log: dict  # TODO: create log models
+    subscription: str
     workspaceId: str
 
 
-class StarkBankInvoiceEvent(BaseModel):
-    event: _StarkBankInvoiceEvent
+class StarkBankEvent(BaseModel):
+    event: _StarkBankEvent

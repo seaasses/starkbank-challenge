@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from functools import lru_cache
 
-from app.models.types import Transfer, StarkBankInvoiceEvent, Transfer, Account
+from app.models.types import Transfer, StarkBankEvent, Transfer
 from app.core.config import settings
 from app.services.starkbank_signature_verifier.implementation import (
     StarkBankSignatureVerifier,
@@ -34,7 +34,7 @@ def get_transfer_sender() -> TransferSender:
 
 async def valid_signature(
     request: Request,
-    schema: StarkBankInvoiceEvent,
+    schema: StarkBankEvent,
     signature_verifier=Depends(get_signature_verifier),
 ):
     signature = request.headers.get("Digital-Signature")
@@ -52,14 +52,20 @@ async def valid_signature(
 
 
 @router.post(
-    "/starkbank/invoices",
+    "/starkbank",
     dependencies=[Depends(valid_signature)],
 )
 async def starkbank_invoices_webhook(
-    schema: StarkBankInvoiceEvent,
+    schema: StarkBankEvent,
     transfer_sender: TransferSender = Depends(get_transfer_sender),
 ) -> None:
-    transfer_amount = schema.event.log.invoice.amount - schema.event.log.invoice.fee
+
+    if schema.event.subscription != "invoice":
+        return
+
+    transfer_amount = (
+        schema.event.log["invoice"]["amount"] - schema.event.log["invoice"]["fee"]
+    )
 
     transfer = Transfer(
         account=settings.default_account,
