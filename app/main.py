@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from app.api.v1.endpoints import invoices
 from app.api.v1.endpoints import webhooks
 import starkbank
+import redis
 from app.core.config import settings
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -15,6 +16,13 @@ scheduler = BackgroundScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Test Redis connection
+    redis_client = redis.from_url(settings.REDIS_URL)
+    try:
+        redis_client.ping()
+    except redis.ConnectionError as e:
+        raise
+
     starkbank.user = settings.starkbank_project
 
     webhooks = starkbank.webhook.query()
