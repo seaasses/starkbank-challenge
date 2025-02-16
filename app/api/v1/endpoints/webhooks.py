@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from functools import lru_cache
+from datetime import datetime, timedelta, timezone
 
 from app.models.types import Transfer, StarkBankEvent
 from app.core.config import settings
@@ -31,6 +32,17 @@ class WebhookRequest(BaseModel):
     event: StarkBankEvent
 
 
+async def validate_event_age(schema: WebhookRequest):
+    now = datetime.now(timezone.utc)
+    event_age = now - schema.event.created
+
+    if event_age > settings.max_event_age:
+        raise HTTPException(
+            status_code=410,
+            detail=f"Event is too old. Maximum age is {settings.max_event_age.total_seconds()/60} minutes",
+        )
+
+
 async def validate_signature(
     request: Request,
     schema: WebhookRequest,
@@ -52,7 +64,7 @@ async def validate_signature(
 
 @router.post(
     "/starkbank",
-    dependencies=[Depends(validate_signature)],
+    dependencies=[Depends(validate_signature), Depends(validate_event_age)],
 )
 async def starkbank_webhook(
     schema: WebhookRequest,
