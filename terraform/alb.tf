@@ -6,7 +6,7 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = module.vpc.public_subnets
 
-  enable_deletion_protection = true
+  enable_deletion_protection = false
 }
 
 # Target Group
@@ -20,11 +20,11 @@ resource "aws_lb_target_group" "app" {
   health_check {
     enabled             = true
     healthy_threshold   = 2
-    interval           = 30
-    protocol           = "HTTPS"
-    matcher            = "200"
-    timeout            = 5
-    path              = "/health"
+    interval            = 30
+    protocol            = "HTTPS"
+    matcher             = "200"
+    timeout             = 5
+    path                = "/health"
     unhealthy_threshold = 5
   }
 
@@ -113,4 +113,4 @@ resource "aws_route53_record" "app" {
     zone_id                = aws_lb.main.zone_id
     evaluate_target_health = true
   }
-} 
+}
