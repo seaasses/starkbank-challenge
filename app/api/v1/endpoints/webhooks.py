@@ -57,6 +57,7 @@ async def validate_signature(
 async def starkbank_webhook(
     schema: WebhookRequest,
     transfer_sender: TransferSender = Depends(get_transfer_sender),
+    # TODO: prevent retry attacks
 ) -> None:
     if schema.event.subscription != "invoice" or schema.event.log["type"] != "credited":
         return
