@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.api.v1.endpoints import invoices
 from app.api.v1.endpoints import webhooks
+from app.api.v1.endpoints import health
 import starkbank
 import redis
 from app.core.config import settings
@@ -74,6 +75,7 @@ app = FastAPI(
 # Include routers
 app.include_router(invoices.router, prefix="/api/v1/invoices", tags=["invoices"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
+app.include_router(health.router, prefix="/health", tags=["health"])
 
 
 if __name__ == "__main__":
