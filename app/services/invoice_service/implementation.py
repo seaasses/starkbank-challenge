@@ -7,9 +7,14 @@ class StarkBankInvoiceSender(InvoiceSender):
     def __init__(self, starkbank_project: starkbank.Project):
         self.starkbank_project = starkbank_project
 
+    def send_batch(self, invoices: list[Invoice]):
+        stark_invoices = [
+            self.__convert_to_starkbank_invoice(invoice) for invoice in invoices
+        ]
+        starkbank.invoice.create(stark_invoices, user=self.starkbank_project)
+
     def send(self, invoice: Invoice):
-        stark_invoice = self.__convert_to_starkbank_invoice(invoice)
-        starkbank.invoice.create([stark_invoice], user=self.starkbank_project)
+        self.send_batch([invoice])
 
     def __convert_to_starkbank_invoice(self, invoice: Invoice) -> starkbank.Invoice:
         return starkbank.Invoice(
@@ -18,4 +23,3 @@ class StarkBankInvoiceSender(InvoiceSender):
             tax_id=invoice.person.cpf,
             due=invoice.due_date,
         )
-
