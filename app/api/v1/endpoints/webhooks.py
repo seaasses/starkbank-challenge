@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from functools import lru_cache
 from datetime import datetime, timezone
-from cachetools import TTLCache
+import redis
 
 from app.models.types import Transfer, StarkBankEvent
 from app.core.config import settings
@@ -21,10 +21,8 @@ def get_signature_verifier():
 
 
 @lru_cache(maxsize=1)
-def get_processed_events_cache():
-    return TTLCache(
-        maxsize=float("inf"), ttl=int(settings.max_event_age.total_seconds())
-    )
+def get_redis_client():
+    return redis.from_url(settings.REDIS_URL)
 
 
 class WebhookRequest(BaseModel):
@@ -44,9 +42,10 @@ async def validate_event_age(schema: WebhookRequest):
 
 async def validate_not_already_processed(
     schema: WebhookRequest,
-    processed_events=Depends(get_processed_events_cache),
+    redis_client=Depends(get_redis_client),
 ):
-    if schema.event.id in processed_events:
+    key = f"webhook:event:{schema.event.id}"
+    if redis_client.exists(key):
         raise HTTPException(
             status_code=409,
             detail="Event already processed",
@@ -82,7 +81,7 @@ async def validate_signature(
 )
 async def starkbank_webhook(
     schema: WebhookRequest,
-    processed_events: TTLCache = Depends(get_processed_events_cache),
+    redis_client=Depends(get_redis_client),
 ):
     if schema.event.subscription != "invoice" or schema.event.log["type"] != "credited":
         return
@@ -98,4 +97,6 @@ async def starkbank_webhook(
     )
 
     transfer_sender.send(transfer)
-    processed_events[schema.event.id] = True
+
+    key = f"webhook:event:{schema.event.id}"
+    redis_client.set(key, "1", ex=int(settings.max_event_age.total_seconds()))
