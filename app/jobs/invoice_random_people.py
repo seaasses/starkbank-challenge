@@ -6,6 +6,11 @@ import random
 
 
 def invoice_random_people(n_min: int, n_max: int):
+    if n_min < 0 or n_max < 0:
+        raise ValueError("n_min and n_max must be non-negative")
+    if n_min > n_max:
+        raise ValueError("n_min cannot be greater than n_max")
+    
     n = random.randint(n_min, n_max)
     invoices = []
     invoice_sender = StarkBankInvoiceSender(settings.starkbank_project)
