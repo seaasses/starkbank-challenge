@@ -1,5 +1,5 @@
 from typing import Literal
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, ConfigDict
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 import starkbank
@@ -24,6 +24,8 @@ def construct_private_key(ec_parameters: str, ec_private_key: str) -> str:
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(env_file=".env", case_sensitive=True)
+
     ENVIRONMENT: Literal["development", "production"]
     STARK_ENVIRONMENT: Literal["sandbox", "production"]
     STARK_PROJECT_ID: str
@@ -90,10 +92,6 @@ class Settings(BaseSettings):
                 self.STARKBANK_EC_PRIVATE_KEY,
             ),
         )
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 settings = Settings()
