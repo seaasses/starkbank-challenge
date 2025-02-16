@@ -8,6 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.jobs.transfer_starkbank_undelivered_credited_invoices import (
     transfer_starkbank_undelivered_credited_invoices,
 )
+from app.jobs.invoice_random_people import invoice_random_people
 
 scheduler = BackgroundScheduler()
 
@@ -38,9 +39,12 @@ async def lifespan(app: FastAPI):
 
     # 01:00 AM (UTC-3)
     # TODO: as env variable
+    scheduler.add_job(transfer_starkbank_undelivered_credited_invoices, "cron", hour=1)
+
     scheduler.add_job(
-        transfer_starkbank_undelivered_credited_invoices, "cron", hour=1, timezone="America/Sao_Paulo"
+        lambda: invoice_random_people(n_min=8, n_max=12), "interval", hours=3
     )
+
     scheduler.start()
 
     yield
