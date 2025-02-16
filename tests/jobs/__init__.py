@@ -1,0 +1,3 @@
+"""
+Jobs tests package initialization.
+""" 
