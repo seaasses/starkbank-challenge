@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 import starkbank
 from app.models.types import Account, AccountType
+from datetime import timedelta
 
 load_dotenv()
 
@@ -40,6 +41,28 @@ class Settings(BaseSettings):
     def validate_default_account(self):
         self.default_account
         return self
+
+    @property
+    def max_event_age(self) -> timedelta:
+        """
+        This helps prevent replay attacks.
+        With a 7-minute tolerance window, we only need to store
+        event ids for the last 7 minutes.
+
+        This time is hardcoded because
+        "
+            If your endpoint URL does not return a 200 status,
+            the webhook service will try again at most three times.
+            The interval between each attempt is 5 min,
+            30 min and finally 120 min.
+        " - https://starkbank.com/docs/api#webhook
+
+        We can receive and handle the first retry after 5 minutes
+        within this window, giving us 2 opportunities to process the event.
+        The second and third retries will not be handled, but we have
+        a job that processes undelivered events once per day.
+        """
+        return timedelta(seconds=420)
 
     @property
     def default_account(self) -> Account:
