@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     STARKBANK_EC_PARAMETERS: str
     STARKBANK_EC_PRIVATE_KEY: str
     API_EXTERNAL_URL: str
+    REDIS_URL: str = Field(default="redis://localhost:6379/0")
     DEFAULT_BANK_CODE: str = Field(default="20018183")
     DEFAULT_BRANCH: str = Field(default="0001")
     DEFAULT_ACCOUNT: str = Field(default="6341320293482496")
