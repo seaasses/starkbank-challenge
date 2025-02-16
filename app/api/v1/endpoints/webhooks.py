@@ -9,7 +9,6 @@ from app.core.config import settings
 from app.services.starkbank_signature_verifier.implementation import (
     StarkBankSignatureVerifier,
 )
-from app.services.transfer_service.interface import TransferSender
 from app.services.transfer_service.implementation import StarkBankTransferSender
 
 router = APIRouter()
@@ -26,14 +25,6 @@ def get_processed_events_cache():
     return TTLCache(
         maxsize=float("inf"), ttl=int(settings.max_event_age.total_seconds())
     )
-
-
-def get_transfer_sender() -> TransferSender:
-    default_account = settings.default_account
-    if default_account.bank_code == "20018183":
-        return StarkBankTransferSender(settings.starkbank_project)
-    else:
-        raise HTTPException(status_code=400, detail="Bank not supported")
 
 
 class WebhookRequest(BaseModel):
@@ -91,12 +82,12 @@ async def validate_signature(
 )
 async def starkbank_webhook(
     schema: WebhookRequest,
-    transfer_sender: TransferSender = Depends(get_transfer_sender),
     processed_events: TTLCache = Depends(get_processed_events_cache),
 ):
     if schema.event.subscription != "invoice" or schema.event.log["type"] != "credited":
         return
 
+    transfer_sender = StarkBankTransferSender(settings.starkbank_project)
     transfer_amount = (
         schema.event.log["invoice"]["amount"] - schema.event.log["invoice"]["fee"]
     )
