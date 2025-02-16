@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from functools import lru_cache
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from cachetools import TTLCache
 
 from app.models.types import Transfer, StarkBankEvent
 from app.core.config import settings
@@ -18,6 +19,13 @@ router = APIRouter()
 def get_signature_verifier():
     # use the same instance for all requests
     return StarkBankSignatureVerifier(settings.starkbank_project)
+
+
+@lru_cache(maxsize=1)
+def get_processed_events_cache():
+    return TTLCache(
+        maxsize=float("inf"), ttl=int(settings.max_event_age.total_seconds())
+    )
 
 
 def get_transfer_sender() -> TransferSender:
@@ -43,6 +51,17 @@ async def validate_event_age(schema: WebhookRequest):
         )
 
 
+async def validate_not_already_processed(
+    schema: WebhookRequest,
+    processed_events=Depends(get_processed_events_cache),
+):
+    if schema.event.id in processed_events:
+        raise HTTPException(
+            status_code=409,
+            detail="Event already processed",
+        )
+
+
 async def validate_signature(
     request: Request,
     schema: WebhookRequest,
@@ -64,13 +83,17 @@ async def validate_signature(
 
 @router.post(
     "/starkbank",
-    dependencies=[Depends(validate_signature), Depends(validate_event_age)],
+    dependencies=[
+        Depends(validate_signature),
+        Depends(validate_event_age),
+        Depends(validate_not_already_processed),
+    ],
 )
 async def starkbank_webhook(
     schema: WebhookRequest,
     transfer_sender: TransferSender = Depends(get_transfer_sender),
-    # TODO: prevent retry attacks
-) -> None:
+    processed_events: TTLCache = Depends(get_processed_events_cache),
+):
     if schema.event.subscription != "invoice" or schema.event.log["type"] != "credited":
         return
 
@@ -84,3 +107,4 @@ async def starkbank_webhook(
     )
 
     transfer_sender.send(transfer)
+    processed_events[schema.event.id] = True
