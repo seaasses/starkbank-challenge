@@ -13,7 +13,7 @@ variable "environment" {
 variable "app_name" {
   description = "Application name"
   type        = string
-  default     = "stark-challenge"
+  default     = "starkbank-challenge"
 }
 
 variable "domain_name" {
