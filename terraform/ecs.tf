@@ -9,12 +9,12 @@ resource "aws_ecs_cluster" "main" {
 
 resource "aws_ecs_task_definition" "app" {
   family                   = "${var.app_name}-task"
-  network_mode            = "awsvpc"
+  network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                     = var.container_cpu
-  memory                  = var.container_memory
-  execution_role_arn      = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn           = aws_iam_role.ecs_task_role.arn
+  cpu                      = var.container_cpu
+  memory                   = var.container_memory
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
@@ -91,11 +91,11 @@ resource "aws_ecs_service" "app" {
   launch_type     = "FARGATE"
 
   deployment_minimum_healthy_percent = 100
-  deployment_maximum_percent        = 200
-  health_check_grace_period_seconds = 30
+  deployment_maximum_percent         = 200
+  health_check_grace_period_seconds  = 30
 
-  enable_execute_command = true  # Enables ECS Exec for debugging
-  force_new_deployment  = true   # Forces new deployment when task definition changes
+  enable_execute_command = true # Enables ECS Exec for debugging
+  force_new_deployment   = true # Forces new deployment when task definition changes
 
   deployment_circuit_breaker {
     enable   = true
@@ -104,8 +104,8 @@ resource "aws_ecs_service" "app" {
 
   network_configuration {
     security_groups  = [aws_security_group.ecs_tasks.id]
-    subnets         = module.vpc.private_subnets
-    assign_public_ip = false  # Using NAT Gateway instead
+    subnets          = module.vpc.private_subnets
+    assign_public_ip = false # Using NAT Gateway instead
   }
 
   load_balancer {
@@ -122,46 +122,3 @@ resource "aws_cloudwatch_log_group" "app" {
   name              = "/ecs/${var.app_name}"
   retention_in_days = 30
 }
-
-# ECR Repository
-resource "aws_ecr_repository" "main" {
-  name = var.app_name
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-}
-
-# Add lifecycle policy to keep only recent images
-resource "aws_ecr_lifecycle_policy" "main" {
-  repository = aws_ecr_repository.main.name
-
-  policy = jsonencode({
-    rules = [{
-      rulePriority = 1
-      description  = "Keep last 5 images"
-      selection = {
-        tagStatus     = "any"
-        countType     = "imageCountMoreThan"
-        countNumber   = 5
-      }
-      action = {
-        type = "expire"
-      }
-    }]
-  })
-}
-
-# Add ECR trigger for force deployment
-resource "null_resource" "trigger_deployment" {
-  triggers = {
-    ecr_image_tag = data.aws_ecr_image.app_image.image_digest
-  }
-
-  depends_on = [aws_ecs_service.app]
-}
-
-# Get the latest image info
-data "aws_ecr_image" "app_image" {
-  repository_name = aws_ecr_repository.main.name
-  image_tag      = "latest"
-} 

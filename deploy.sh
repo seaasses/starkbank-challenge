@@ -24,4 +24,12 @@ docker tag ${APP_NAME}:latest ${ECR_REPO}:latest
 echo "Pushing image to ECR..."
 docker push ${ECR_REPO}:latest
 
-echo "Deployment complete!"
+echo "Image pushed successfully! ECS will automatically deploy the new version."
+
+echo "Forcing new deployment of ECS service..."
+aws ecs update-service --cluster ${APP_NAME}-cluster \
+    --service ${APP_NAME}-service \
+    --force-new-deployment \
+    --region ${AWS_REGION}
+
+echo "Force deployment initiated successfully!"
