@@ -16,75 +16,8 @@ import time
 scheduler = BackgroundScheduler()
 
 WEBHOOK_LOCK_KEY = "starkbank_webhook_lock"
-WEBHOOK_ID_KEY = "starkbank_webhook_id"
-MAX_RETRIES = 5
-RETRY_DELAY = 2
-
-
-def get_or_create_webhook(redis_client, webhook_url: str) -> str:
-    """
-    Get or create Starkbank webhook with proper error handling and retries
-    """
-    for attempt in range(MAX_RETRIES):
-        try:
-            # First try to get from Redis
-            webhook_id = redis_client.get(WEBHOOK_ID_KEY)
-            if webhook_id:
-                return (
-                    webhook_id.decode() if isinstance(webhook_id, bytes) else webhook_id
-                )
-
-            # Try to acquire lock
-            lock_acquired = redis_client.set(WEBHOOK_LOCK_KEY, "1", nx=True, ex=30)
-
-            if not lock_acquired:
-                # Another worker is handling it - wait and retry
-                time.sleep(RETRY_DELAY)
-                continue
-
-            try:
-                # Double check Redis after acquiring lock
-                webhook_id = redis_client.get(WEBHOOK_ID_KEY)
-                if webhook_id:
-                    return (
-                        webhook_id.decode()
-                        if isinstance(webhook_id, bytes)
-                        else webhook_id
-                    )
-
-                # Check Starkbank webhooks
-                webhooks = starkbank.webhook.query()
-                for webhook in webhooks:
-                    if webhook.url == webhook_url:
-                        # Found existing webhook - save and return
-                        redis_client.set(WEBHOOK_ID_KEY, str(webhook.id))
-                        return str(webhook.id)
-
-                # No webhook exists - create new one
-                print(f"Creating Starkbank invoices webhook url: {webhook_url}")
-                webhook = starkbank.webhook.create(
-                    url=webhook_url,
-                    subscriptions=["invoice"],
-                )
-                redis_client.set(WEBHOOK_ID_KEY, str(webhook.id))
-                return str(webhook.id)
-
-            except Exception as e:
-                print(f"Error in webhook setup (attempt {attempt + 1}): {str(e)}")
-                if attempt == MAX_RETRIES - 1:
-                    raise
-                time.sleep(RETRY_DELAY)
-                continue
-            finally:
-                redis_client.delete(WEBHOOK_LOCK_KEY)
-
-        except Exception as e:
-            print(f"Error in attempt {attempt + 1}: {str(e)}")
-            if attempt == MAX_RETRIES - 1:
-                raise
-            time.sleep(RETRY_DELAY)
-
-    raise Exception(f"Failed to setup webhook after {MAX_RETRIES} attempts")
+GET_WEBHOOK_ID_DELAY = 3
+MAX_GET_WEBHOOK_ID_ATTEMPTS = 20
 
 
 @asynccontextmanager
@@ -120,8 +53,7 @@ async def lifespan(app: FastAPI):
         finally:
             redis_client.delete(WEBHOOK_LOCK_KEY)
 
-    # Wait a bit for the webhook to be created if needed
-    if webhook_id is None:
+    while webhook_id is None:
         time.sleep(2)
         webhooks = starkbank.webhook.query()
         for webhook in webhooks:
