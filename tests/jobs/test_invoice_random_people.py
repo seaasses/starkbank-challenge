@@ -6,7 +6,7 @@ from app.models.types import Person, Invoice
 
 @pytest.fixture
 def mock_person():
-    return Person(name="John Doe", cpf="123.456.789-00")
+    return Person(name="John Doe", cpf="803.778.410-05")
 
 
 def test_invoice_random_people(mock_person):
