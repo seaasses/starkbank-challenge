@@ -16,13 +16,13 @@ import time
 scheduler = BackgroundScheduler()
 
 WEBHOOK_LOCK_KEY = "starkbank_webhook_lock"
+WEBHOOK_ID_KEY = "starkbank_webhook_id"
 GET_WEBHOOK_ID_DELAY = 3
 MAX_GET_WEBHOOK_ID_ATTEMPTS = 20
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Test Redis connection
     redis_client = redis.from_url(settings.REDIS_URL)
     try:
         redis_client.ping()
@@ -33,34 +33,37 @@ async def lifespan(app: FastAPI):
     webhook_url = settings.starkbank_invoices_webhook_url
     webhook_id = None
 
-    # Try to acquire lock
-    if redis_client.set(WEBHOOK_LOCK_KEY, "1", nx=True, ex=30):
-        try:
-            # Check if webhook exists
-            webhooks = starkbank.webhook.query()
-            for webhook in webhooks:
-                if webhook.url == webhook_url:
-                    webhook_id = webhook.id
-                    break
+    webhook_id = redis_client.get(WEBHOOK_ID_KEY)
+    if webhook_id:
+        webhook_id = webhook_id.decode("utf-8")
 
-            # Create if it doesn't exist
-            if webhook_id is None:
-                webhook = starkbank.webhook.create(
-                    url=webhook_url,
-                    subscriptions=["invoice"],
-                )
-                webhook_id = webhook.id
-        finally:
-            redis_client.delete(WEBHOOK_LOCK_KEY)
+    if webhook_id is None:
+        if redis_client.set(WEBHOOK_LOCK_KEY, "1", nx=True, ex=30):
+            try:
+                webhooks = starkbank.webhook.query()
+                for webhook in webhooks:
+                    if webhook.url == webhook_url:
+                        webhook_id = webhook.id
+                        break
+
+                if webhook_id is None:
+                    webhook = starkbank.webhook.create(
+                        url=webhook_url,
+                        subscriptions=["invoice"],
+                    )
+                    webhook_id = webhook.id
+
+                if webhook_id:
+                    redis_client.set(WEBHOOK_ID_KEY, webhook_id)
+            finally:
+                redis_client.delete(WEBHOOK_LOCK_KEY)
 
     get_webhook_id_attempts = 0
     while webhook_id is None and get_webhook_id_attempts < MAX_GET_WEBHOOK_ID_ATTEMPTS:
         time.sleep(GET_WEBHOOK_ID_DELAY)
-        webhooks = starkbank.webhook.query()
-        for webhook in webhooks:
-            if webhook.url == webhook_url:
-                webhook_id = webhook.id
-                break
+        webhook_id = redis_client.get(WEBHOOK_ID_KEY)
+        if webhook_id:
+            webhook_id = webhook_id.decode("utf-8")
         get_webhook_id_attempts += 1
 
     if webhook_id is None:
@@ -83,6 +86,7 @@ async def lifespan(app: FastAPI):
     if settings.ENVIRONMENT == "development":
         print("Cleaning up Starkbank Invoices Webhook")
         starkbank.webhook.delete(webhook_id)
+        redis_client.delete(WEBHOOK_ID_KEY)
 
     scheduler.shutdown()
 
