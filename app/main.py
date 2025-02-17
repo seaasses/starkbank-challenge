@@ -53,8 +53,8 @@ async def lifespan(app: FastAPI):
         finally:
             redis_client.delete(WEBHOOK_LOCK_KEY)
 
-    while webhook_id is None:
-        time.sleep(2)
+    for _ in range(MAX_GET_WEBHOOK_ID_ATTEMPTS):
+        time.sleep(GET_WEBHOOK_ID_DELAY)
         webhooks = starkbank.webhook.query()
         for webhook in webhooks:
             if webhook.url == webhook_url:
