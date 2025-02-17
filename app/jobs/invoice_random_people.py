@@ -16,10 +16,10 @@ def invoice_random_people(n_min: int, n_max: int):
     invoice_sender = StarkBankInvoiceSender(settings.starkbank_project)
     person_getter = RandomPersonGetter()
     for _ in range(n):
-
         person = person_getter.get_random_person()
         amount = random.randint(100, 10000000000 - 1)
         invoice = Invoice(amount=amount, person=person)
         invoices.append(invoice)
 
-    invoice_sender.send_batch(invoices)
+    if len(invoices) > 0:
+        invoice_sender.send_batch(invoices)
