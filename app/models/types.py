@@ -3,12 +3,38 @@ from enum import Enum
 from pydantic import Field, field_validator
 import re
 from datetime import date, datetime
-from typing import Optional, Literal
+from typing import Optional
 
 
 class Person(BaseModel):
     name: str = Field(min_length=1)
-    cpf: str  # TODO add validator
+    cpf: str
+
+    @field_validator("cpf")
+    def validate_cpf(cls, v: str) -> str:
+        numbers = "".join(filter(str.isdigit, v))
+
+        if len(numbers) != 11:
+            raise ValueError("CPF must have 11 digits")
+
+        if len(set(numbers)) == 1:
+            raise ValueError("Invalid CPF")
+
+        sum_of_products = sum(
+            int(a) * b for a, b in zip(numbers[0:9], range(10, 1, -1))
+        )
+        expected_digit = (sum_of_products * 10 % 11) % 10
+        if int(numbers[9]) != expected_digit:
+            raise ValueError("Invalid CPF")
+
+        sum_of_products = sum(
+            int(a) * b for a, b in zip(numbers[0:10], range(11, 1, -1))
+        )
+        expected_digit = (sum_of_products * 10 % 11) % 10
+        if int(numbers[10]) != expected_digit:
+            raise ValueError("Invalid CPF")
+
+        return v
 
 
 class AccountType(str, Enum):
