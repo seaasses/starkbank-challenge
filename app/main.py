@@ -37,27 +37,41 @@ async def lifespan(app: FastAPI):
     if webhook_id:
         webhook_id = webhook_id.decode("utf-8")
 
+    main_thread = False
     if webhook_id is None:
         if redis_client.set(WEBHOOK_LOCK_KEY, "1", nx=True, ex=30):
-            try:
-                webhooks = starkbank.webhook.query()
-                for webhook in webhooks:
-                    if webhook.url == webhook_url:
-                        webhook_id = webhook.id
-                        break
-
-                if webhook_id is None:
-                    webhook = starkbank.webhook.create(
-                        url=webhook_url,
-                        subscriptions=["invoice"],
-                    )
+            # this is the main worker on all workers/instances
+            # it will create the webhook and run the jobs
+            main_thread = True
+            webhooks = starkbank.webhook.query()
+            for webhook in webhooks:
+                if webhook.url == webhook_url:
                     webhook_id = webhook.id
+                    break
 
-                if webhook_id:
-                    redis_client.set(WEBHOOK_ID_KEY, webhook_id)
-            finally:
-                redis_client.delete(WEBHOOK_LOCK_KEY)
+            if webhook_id is None:
+                webhook = starkbank.webhook.create(
+                    url=webhook_url,
+                    subscriptions=["invoice"],
+                )
+                webhook_id = webhook.id
 
+            if webhook_id:
+                redis_client.set(WEBHOOK_ID_KEY, webhook_id)
+
+            # 01:00 AM (UTC-3)
+            # TODO: as env variable
+            scheduler.add_job(
+                transfer_starkbank_undelivered_credited_invoices, "cron", hour=1
+            )
+
+            scheduler.add_job(
+                lambda: invoice_random_people(n_min=8, n_max=8), "interval", minutes=6
+            )
+
+            scheduler.start()
+
+    # the other threads will wait for the webhook ID to be set
     get_webhook_id_attempts = 0
     while webhook_id is None and get_webhook_id_attempts < MAX_GET_WEBHOOK_ID_ATTEMPTS:
         time.sleep(GET_WEBHOOK_ID_DELAY)
@@ -66,29 +80,24 @@ async def lifespan(app: FastAPI):
             webhook_id = webhook_id.decode("utf-8")
         get_webhook_id_attempts += 1
 
+    # if the webhook ID is not set, it will raise an exception
     if webhook_id is None:
         raise Exception("Could not get webhook ID")
 
     print(f"Using webhook with ID: {webhook_id}")
-
-    # 01:00 AM (UTC-3)
-    # TODO: as env variable
-    scheduler.add_job(transfer_starkbank_undelivered_credited_invoices, "cron", hour=1)
-
-    scheduler.add_job(
-        lambda: invoice_random_people(n_min=8, n_max=12), "interval", hours=3
-    )
-
-    scheduler.start()
+    print('baakda')
 
     yield
 
-    if settings.ENVIRONMENT == "development":
-        print("Cleaning up Starkbank Invoices Webhook")
-        starkbank.webhook.delete(webhook_id)
-        redis_client.delete(WEBHOOK_ID_KEY)
+    if main_thread:
 
-    scheduler.shutdown()
+        # only the main thread started the scheduler
+        scheduler.shutdown()
+
+        if settings.ENVIRONMENT == "development":
+            print("Cleaning up Starkbank Invoices Webhook")
+            redis_client.delete(WEBHOOK_ID_KEY)
+            starkbank.webhook.delete(webhook_id)
 
 
 app = FastAPI(
