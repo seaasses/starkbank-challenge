@@ -1,13 +1,13 @@
 services:
   api:
     build:
-      context: .
+      context: ./api/ 
       dockerfile: Dockerfile.dev
     container_name: starkbank-api
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - ./api:/app
       - /app/.venv
       - /app/__pycache__
       - /app/**/__pycache__
