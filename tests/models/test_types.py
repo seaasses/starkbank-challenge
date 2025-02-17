@@ -12,15 +12,58 @@ from app.models.types import (
 
 
 def test_person_valid():
-    person = Person(name="John Doe", cpf="123.456.789-00")
+    person = Person(name="John Doe", cpf="803.778.410-05")
     assert person.name == "John Doe"
-    assert person.cpf == "123.456.789-00"
+    assert person.cpf == "803.778.410-05"
 
 
 def test_person_invalid_name():
     with pytest.raises(ValidationError) as exc_info:
-        Person(name="", cpf="123.456.789-00")
+        Person(name="", cpf="803.778.410-05")
     assert "String should have at least 1 character" in str(exc_info.value)
+
+
+def test_person_invalid_cpf_format():
+    # Test with wrong number of digits
+    with pytest.raises(ValidationError) as exc_info:
+        Person(name="John Doe", cpf="123.456.789-0")
+    assert "CPF must have 11 digits" in str(exc_info.value)
+
+    # Test with non-numeric characters only
+    with pytest.raises(ValidationError) as exc_info:
+        Person(name="John Doe", cpf="abc.def.ghi-jk")
+    assert "CPF must have 11 digits" in str(exc_info.value)
+
+    # Test with all same digits
+    with pytest.raises(ValidationError) as exc_info:
+        Person(name="John Doe", cpf="111.111.111-11")
+    assert "Invalid CPF" in str(exc_info.value)
+
+
+def test_person_invalid_cpf_checksum():
+    # Test with invalid first digit
+    with pytest.raises(ValidationError) as exc_info:
+        Person(name="John Doe", cpf="803.778.410-15")  # Changed last digit
+    assert "Invalid CPF" in str(exc_info.value)
+
+    # Test with invalid second digit
+    with pytest.raises(ValidationError) as exc_info:
+        Person(name="John Doe", cpf="803.778.410-04")  # Changed second to last digit
+    assert "Invalid CPF" in str(exc_info.value)
+
+
+def test_person_cpf_different_formats():
+    # Test with different valid formats of the same CPF
+    valid_cpf = "803.778.410-05"
+    person1 = Person(name="John Doe", cpf=valid_cpf)  # With dots and dash
+    person2 = Person(name="John Doe", cpf="80377841005")  # Only numbers
+    person3 = Person(name="John Doe", cpf="803778410-05")  # Only with dash
+    person4 = Person(name="John Doe", cpf="803.778.41005")  # Partial formatting
+
+    assert person1.cpf == valid_cpf
+    assert person2.cpf == "80377841005"
+    assert person3.cpf == "803778410-05"
+    assert person4.cpf == "803.778.41005"
 
 
 def test_account_type_valid():
@@ -127,7 +170,7 @@ def test_transfer_invalid_amount():
 
 
 def test_invoice_valid():
-    person = Person(name="John Doe", cpf="123.456.789-00")
+    person = Person(name="John Doe", cpf="803.778.410-05")
     invoice = Invoice(amount=1000, person=person, due_date=date(2024, 12, 31))
     assert invoice.amount == 1000
     assert invoice.person == person
@@ -135,13 +178,13 @@ def test_invoice_valid():
 
 
 def test_invoice_optional_due_date():
-    person = Person(name="John Doe", cpf="123.456.789-00")
+    person = Person(name="John Doe", cpf="803.778.410-05")
     invoice = Invoice(amount=1000, person=person)
     assert invoice.due_date is None
 
 
 def test_invoice_invalid_amount():
-    person = Person(name="John Doe", cpf="123.456.789-00")
+    person = Person(name="John Doe", cpf="803.778.410-05")
     
     # Test amount <= 0
     with pytest.raises(ValidationError) as exc_info:
