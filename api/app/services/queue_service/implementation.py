@@ -66,3 +66,6 @@ class RabbitMQService(QueueService):
         finally:
             if self.connection and not self.connection.is_closed:
                 self.connection.close()
+
+    def publish_messages(self, messages: list[dict[str, str]]) -> list[bool]:
+        return [self.publish_message(message) for message in messages]
