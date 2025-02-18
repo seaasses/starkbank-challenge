@@ -63,8 +63,7 @@ services:
   queue_consumer:
     build:
       context: ./queue/
-      dockerfile: Dockerfile
-    container_name: starkbank-queue-consumer
+      dockerfile: Dockerfile.dev
     env_file:
       - .env
     environment:
@@ -72,6 +71,8 @@ services:
       - RABBITMQ_PORT=5672
       - RABBITMQ_USER=default
       - RABBITMQ_PASS=dev_password
+      - NUM_CONSUMERS_PER_INSTANCE=50
+      - QUEUE_NAME=starkbank-queue
     depends_on:
       rabbitmq:
         condition: service_healthy
