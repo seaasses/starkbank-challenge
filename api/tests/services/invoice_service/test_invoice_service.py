@@ -1,8 +1,9 @@
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from datetime import date
 from app.models.types import Invoice, Person
-from app.services.invoice_service.implementation import StarkBankInvoiceSender
+from app.services.invoice_service.implementation import QueueInvoiceSender
+from app.services.queue_service.interface import QueueService
 
 
 @pytest.fixture
@@ -11,72 +12,56 @@ def mock_person():
 
 
 @pytest.fixture
-def mock_starkbank_project():
-    return Mock(environment="sandbox", id="123", private_key="test-key")
+def mock_queue_service():
+    return Mock(spec=QueueService)
 
 
 @pytest.fixture
-def invoice_sender(mock_starkbank_project):
-    return StarkBankInvoiceSender(mock_starkbank_project)
+def invoice_sender(mock_queue_service):
+    return QueueInvoiceSender(mock_queue_service)
 
 
-def test_send_converts_to_starkbank_invoice(invoice_sender, mock_person):
-    with patch("starkbank.invoice.create") as mock_create:
-        # Create and send invoice
-        invoice = Invoice(amount=1000, person=mock_person, due_date=date(2024, 12, 31))
-        invoice_sender.send(invoice)
+def test_send_publishes_to_queue(invoice_sender, mock_person, mock_queue_service):
+    # Create and send invoice
+    invoice = Invoice(amount=1000, person=mock_person, due_date=date(2024, 12, 31))
+    invoice_sender.send(invoice)
 
-        # Verify conversion to StarkBank format
-        mock_create.assert_called_once()
-        created_invoices = mock_create.call_args[0][0]
-        assert len(created_invoices) == 1
-        
-        starkbank_invoice = created_invoices[0]
-        assert starkbank_invoice.amount == 1000
-        assert starkbank_invoice.name == mock_person.name
-        assert starkbank_invoice.tax_id == mock_person.cpf
-        assert starkbank_invoice.due == date(2024, 12, 31)
+    # Verify message was published to queue
+    mock_queue_service.publish_message.assert_called_once()
+    published_message = mock_queue_service.publish_message.call_args[0][0]
+    
+    assert published_message["type"] == "invoice"
+    assert published_message["data"]["amount"] == 1000
+    assert published_message["data"]["person"]["name"] == mock_person.name
+    assert published_message["data"]["person"]["cpf"] == mock_person.cpf
+    assert published_message["data"]["due_date"] == "2024-12-31"
 
 
-def test_send_batch_converts_all_invoices(invoice_sender, mock_person):
-    with patch("starkbank.invoice.create") as mock_create:
-        # Create and send invoices
-        invoices = [
-            Invoice(amount=1000, person=mock_person),
-            Invoice(amount=2000, person=mock_person),
-        ]
-        invoice_sender.send_batch(invoices)
+def test_send_batch_publishes_all_invoices(invoice_sender, mock_person, mock_queue_service):
+    # Create and send invoices
+    invoices = [
+        Invoice(amount=1000, person=mock_person),
+        Invoice(amount=2000, person=mock_person),
+    ]
+    invoice_sender.send_batch(invoices)
 
-        # Verify conversion of all invoices
-        mock_create.assert_called_once()
-        created_invoices = mock_create.call_args[0][0]
-        assert len(created_invoices) == 2
-        
-        # Verify each converted invoice
-        assert created_invoices[0].amount == 1000
-        assert created_invoices[0].name == mock_person.name
-        assert created_invoices[0].tax_id == mock_person.cpf
-        
-        assert created_invoices[1].amount == 2000
-        assert created_invoices[1].name == mock_person.name
-        assert created_invoices[1].tax_id == mock_person.cpf
+    # Verify all messages were published
+    mock_queue_service.publish_messages.assert_called_once()
+    published_messages = mock_queue_service.publish_messages.call_args[0][0]
+    
+    assert len(published_messages) == 2
+    assert all(msg["type"] == "invoice" for msg in published_messages)
+    assert published_messages[0]["data"]["amount"] == 1000
+    assert published_messages[1]["data"]["amount"] == 2000
 
 
-def test_send_uses_correct_project(invoice_sender, mock_person, mock_starkbank_project):
-    with patch("starkbank.invoice.create") as mock_create:
-        invoice = Invoice(amount=1000, person=mock_person)
-        invoice_sender.send(invoice)
-
-        # Verify project was passed correctly
-        mock_create.assert_called_once()
-        assert mock_create.call_args[1]["user"] == mock_starkbank_project
-
-
-def test_send_empty_batch(invoice_sender):
-    with patch("starkbank.invoice.create") as mock_create:
-        invoice_sender.send_batch([])
-        
-        # Verify empty list is handled correctly
-        mock_create.assert_called_once()
-        created_invoices = mock_create.call_args[0][0]
-        assert len(created_invoices) == 0 
+def test_send_empty_batch(invoice_sender, mock_queue_service):
+    # Setup mock return value
+    mock_queue_service.publish_messages.return_value = []
+    
+    # Send empty batch
+    result = invoice_sender.send_batch([])
+    
+    # Verify no messages were published
+    mock_queue_service.publish_messages.assert_called_once_with([])
+    assert result == [] 

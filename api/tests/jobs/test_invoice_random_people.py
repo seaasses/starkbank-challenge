@@ -1,7 +1,8 @@
 import pytest
 from unittest.mock import Mock, patch
-from app.jobs.invoice_random_people import invoice_random_people
 from app.models.types import Person, Invoice
+from app.services.invoice_service.implementation import QueueInvoiceSender
+from app.services.queue_service.implementation import RabbitMQService
 
 
 @pytest.fixture
@@ -11,159 +12,158 @@ def mock_person():
 
 def test_invoice_random_people(mock_person):
     with patch(
-        "app.jobs.invoice_random_people.StarkBankInvoiceSender"
-    ) as mock_sender, patch(
+        "app.jobs.invoice_random_people.QueueInvoiceSender"
+    ) as mock_sender_class, patch(
         "app.jobs.invoice_random_people.RandomPersonGetter"
-    ) as mock_getter:
+    ) as mock_getter, patch(
+        "app.jobs.invoice_random_people.RabbitMQService"
+    ) as mock_queue_service:
+        # Setup mocks
+        mock_getter.return_value.get_random_person.return_value = mock_person
+        mock_sender_instance = Mock()
+        mock_sender_class.return_value = mock_sender_instance
 
-        sender_instance = Mock()
-        mock_sender.return_value = sender_instance
+        # Run function
+        from app.jobs.invoice_random_people import invoice_random_people
+        invoice_random_people(1, 1)
 
-        getter_instance = Mock()
-        getter_instance.get_random_person.return_value = mock_person
-        mock_getter.return_value = getter_instance
+        # Verify RabbitMQ service was created correctly
+        mock_queue_service.assert_called_once()
+        assert mock_queue_service.call_args[1]["queue_name"] == "task_queue"
 
-        n_min = 5
-        n_max = 5
-        invoice_random_people(n_min, n_max)
+        # Verify sender was created with queue service
+        mock_sender_class.assert_called_once()
+        assert mock_sender_class.call_args[0][0] == mock_queue_service.return_value
 
-        assert getter_instance.get_random_person.call_count == 5
+        # Verify person was created
+        mock_getter.return_value.get_random_person.assert_called_once()
 
-        assert sender_instance.send_batch.call_count == 1
-
-        sent_invoices = sender_instance.send_batch.call_args[0][0]
-        assert len(sent_invoices) == 5
-
-        for invoice in sent_invoices:
-            assert isinstance(invoice, Invoice)
-            assert invoice.person == mock_person
-            assert 100 <= invoice.amount < 10000000000
+        # Verify invoices were sent
+        mock_sender_instance.send_batch.assert_called_once()
+        sent_invoices = mock_sender_instance.send_batch.call_args[0][0]
+        assert len(sent_invoices) == 1
+        assert sent_invoices[0].person == mock_person
 
 
 def test_invoice_random_people_range(mock_person):
     with patch(
-        "app.jobs.invoice_random_people.StarkBankInvoiceSender"
-    ) as mock_sender, patch(
+        "app.jobs.invoice_random_people.QueueInvoiceSender"
+    ) as mock_sender_class, patch(
         "app.jobs.invoice_random_people.RandomPersonGetter"
-    ) as mock_getter:
+    ) as mock_getter, patch(
+        "app.jobs.invoice_random_people.RabbitMQService"
+    ) as mock_queue_service, patch(
+        "app.jobs.invoice_random_people.random.randint"
+    ) as mock_randint:
+        # Setup mocks
+        mock_getter.return_value.get_random_person.return_value = mock_person
+        mock_sender_instance = Mock()
+        mock_sender_class.return_value = mock_sender_instance
+        mock_randint.side_effect = [3, 1000, 2000, 3000]  # First call for n, then for each invoice amount
 
-        sender_instance = Mock()
-        mock_sender.return_value = sender_instance
+        # Run function
+        from app.jobs.invoice_random_people import invoice_random_people
+        invoice_random_people(1, 5)
 
-        getter_instance = Mock()
-        getter_instance.get_random_person.return_value = mock_person
-        mock_getter.return_value = getter_instance
+        # Verify random range for n
+        assert mock_randint.call_args_list[0] == ((1, 5),)
+        
+        # Verify random range for amounts
+        for i in range(1, 4):
+            assert mock_randint.call_args_list[i] == ((100, 10000000000 - 1),)
 
-        n_min = 2
-        n_max = 5
-        invoice_random_people(n_min, n_max)
+        # Verify correct number of people were created
+        assert mock_getter.return_value.get_random_person.call_count == 3
 
-        # Verify that number of calls is within range
-        call_count = getter_instance.get_random_person.call_count
-        assert n_min <= call_count <= n_max
-
-        # Verify batch was sent once
-        assert sender_instance.send_batch.call_count == 1
-
-        # Verify number of invoices matches number of persons
-        sent_invoices = sender_instance.send_batch.call_args[0][0]
-        assert len(sent_invoices) == call_count
-
-        # Verify invoice properties
-        for invoice in sent_invoices:
-            assert isinstance(invoice, Invoice)
-            assert invoice.person == mock_person
-            assert 100 <= invoice.amount < 10000000000
+        # Verify invoices were sent
+        mock_sender_instance.send_batch.assert_called_once()
+        sent_invoices = mock_sender_instance.send_batch.call_args[0][0]
+        assert len(sent_invoices) == 3
+        assert all(invoice.person == mock_person for invoice in sent_invoices)
+        assert [invoice.amount for invoice in sent_invoices] == [1000, 2000, 3000]
 
 
 def test_invoice_random_people_invalid_range():
     with pytest.raises(ValueError) as exc_info:
-        invoice_random_people(5, 2)
-    assert str(exc_info.value) == "n_min cannot be greater than n_max"
+        from app.jobs.invoice_random_people import invoice_random_people
+        invoice_random_people(5, 1)
+    assert "n_min cannot be greater than n_max" in str(exc_info.value)
 
 
 def test_invoice_random_people_zero_min(mock_person):
     with patch(
-        "app.jobs.invoice_random_people.StarkBankInvoiceSender"
-    ) as mock_sender, patch(
+        "app.jobs.invoice_random_people.QueueInvoiceSender"
+    ) as mock_sender_class, patch(
         "app.jobs.invoice_random_people.RandomPersonGetter"
     ) as mock_getter, patch(
         "app.jobs.invoice_random_people.random.randint"
-    ) as mock_randint:
-
-        # Mock random to always return 0 for this test
+    ) as mock_randint, patch(
+        "app.jobs.invoice_random_people.RabbitMQService"
+    ) as mock_queue_service:
+        # Setup mocks
+        mock_getter.return_value.get_random_person.return_value = mock_person
+        mock_sender_instance = Mock()
+        mock_sender_class.return_value = mock_sender_instance
         mock_randint.return_value = 0
 
-        sender_instance = Mock()
-        mock_sender.return_value = sender_instance
+        # Run function
+        from app.jobs.invoice_random_people import invoice_random_people
+        invoice_random_people(0, 5)
 
-        getter_instance = Mock()
-        getter_instance.get_random_person.return_value = mock_person
-        mock_getter.return_value = getter_instance
+        # Verify random range
+        mock_randint.assert_called_once_with(0, 5)
 
-        n_min = 0
-        n_max = 2
-        invoice_random_people(n_min, n_max)
+        # Verify no people were created
+        mock_getter.return_value.get_random_person.assert_not_called()
 
-        # Verify randint was called with correct args
-        mock_randint.assert_called_once_with(n_min, n_max)
-
-        # Verify that number of calls is within range
-        call_count = getter_instance.get_random_person.call_count
-        assert call_count == 0  # We know it's 0 because we mocked randint
-
-        # Since we know n is 0, no invoices should be created or sent
-        assert sender_instance.send_batch.call_count == 0
+        # Verify no invoices were sent
+        mock_sender_instance.send_batch.assert_not_called()
 
 
 def test_invoice_random_people_negative_numbers():
     with pytest.raises(ValueError) as exc_info:
+        from app.jobs.invoice_random_people import invoice_random_people
         invoice_random_people(-1, 5)
-    assert str(exc_info.value) == "n_min and n_max must be non-negative"
+    assert "n_min and n_max must be non-negative" in str(exc_info.value)
 
     with pytest.raises(ValueError) as exc_info:
-        invoice_random_people(1, -5)
-    assert str(exc_info.value) == "n_min and n_max must be non-negative"
-
-    with pytest.raises(ValueError) as exc_info:
-        invoice_random_people(-2, -1)
-    assert str(exc_info.value) == "n_min and n_max must be non-negative"
+        invoice_random_people(0, -5)
+    assert "n_min and n_max must be non-negative" in str(exc_info.value)
 
 
 def test_invoice_random_people_zero_min_with_invoices(mock_person):
     with patch(
-        "app.jobs.invoice_random_people.StarkBankInvoiceSender"
-    ) as mock_sender, patch(
+        "app.jobs.invoice_random_people.QueueInvoiceSender"
+    ) as mock_sender_class, patch(
         "app.jobs.invoice_random_people.RandomPersonGetter"
     ) as mock_getter, patch(
         "app.jobs.invoice_random_people.random.randint"
-    ) as mock_randint:
+    ) as mock_randint, patch(
+        "app.jobs.invoice_random_people.RabbitMQService"
+    ) as mock_queue_service:
+        # Setup mocks
+        mock_getter.return_value.get_random_person.return_value = mock_person
+        mock_sender_instance = Mock()
+        mock_sender_class.return_value = mock_sender_instance
+        mock_randint.side_effect = [2, 1000, 2000]  # First call for n, then for each invoice amount
 
-        mock_randint.side_effect = [2, 1000, 2000]
+        # Run function
+        from app.jobs.invoice_random_people import invoice_random_people
+        invoice_random_people(0, 5)
 
-        sender_instance = Mock()
-        mock_sender.return_value = sender_instance
-
-        getter_instance = Mock()
-        getter_instance.get_random_person.return_value = mock_person
-        mock_getter.return_value = getter_instance
-
-        n_min = 0
-        n_max = 2
-        invoice_random_people(n_min, n_max)
-
-        assert mock_randint.call_args_list[0] == ((n_min, n_max),)
-
+        # Verify random range for n
+        assert mock_randint.call_args_list[0] == ((0, 5),)
+        
+        # Verify random range for amounts
         for i in range(1, 3):
-            assert mock_randint.call_args_list[i] == ((100, 9999999999),)
+            assert mock_randint.call_args_list[i] == ((100, 10000000000 - 1),)
 
-        assert getter_instance.get_random_person.call_count == 2
+        # Verify correct number of people were created
+        assert mock_getter.return_value.get_random_person.call_count == 2
 
-        assert sender_instance.send_batch.call_count == 1
-        sent_invoices = sender_instance.send_batch.call_args[0][0]
+        # Verify invoices were sent
+        mock_sender_instance.send_batch.assert_called_once()
+        sent_invoices = mock_sender_instance.send_batch.call_args[0][0]
         assert len(sent_invoices) == 2
-
-        assert sent_invoices[0].amount == 1000
-        assert sent_invoices[1].amount == 2000
-        for invoice in sent_invoices:
-            assert invoice.person == mock_person
+        assert all(invoice.person == mock_person for invoice in sent_invoices)
+        assert [invoice.amount for invoice in sent_invoices] == [1000, 2000]
