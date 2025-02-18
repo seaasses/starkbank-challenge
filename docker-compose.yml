@@ -17,6 +17,10 @@ services:
       - ENVIRONMENT=development
       - PYTHONPATH=/app
       - REDIS_URL=redis://redis:6379/0
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=default
+      - RABBITMQ_PASS=dev_password
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -39,5 +43,46 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
 
+  rabbitmq:
+    image: rabbitmq:3
+    container_name: starkbank-rabbitmq
+    ports:
+      - "5672:5672"  # AMQP protocol port
+    environment:
+      - RABBITMQ_DEFAULT_USER=default
+      - RABBITMQ_DEFAULT_PASS=dev_password
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  queue_consumer:
+    build:
+      context: ./queue/
+      dockerfile: Dockerfile
+    container_name: starkbank-queue-consumer
+    env_file:
+      - .env
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=default
+      - RABBITMQ_PASS=dev_password
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure:3
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
 volumes:
-  redis_data: 
+  redis_data:
+  rabbitmq_data: 
