@@ -13,7 +13,7 @@ router = APIRouter()
 @lru_cache(maxsize=1)
 def get_invoice_sender() -> InvoiceSender:
     queue_service = RabbitMQService(
-        queue_name="task_queue",
+        queue_name="starkbank-queue",
         rabbitmq_host=os.getenv("RABBITMQ_HOST"),
         rabbitmq_port=os.getenv("RABBITMQ_PORT"),
         rabbitmq_user=os.getenv("RABBITMQ_USER"),
