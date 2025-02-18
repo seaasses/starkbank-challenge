@@ -16,7 +16,10 @@ class QueueInvoiceSender(InvoiceSender):
         return self.queue_service.publish_messages(invoice_messages)
 
     def __convert_to_message(self, invoice: Invoice):
+        data = invoice.model_dump()
+        if data.get("due_date"):
+            data["due_date"] = data["due_date"].isoformat()
         return {
             "type": "invoice",
-            "data": invoice.model_dump(),
+            "data": data,
         }
