@@ -6,9 +6,49 @@ import random
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 from enum import Enum
+from datetime import date
+from typing import Optional
+import starkbank
 import re
 
 load_dotenv()
+
+
+class Person(BaseModel):
+    name: str = Field(min_length=1)
+    cpf: str
+
+    @field_validator("cpf")
+    def validate_cpf(cls, v: str) -> str:
+        numbers = "".join(filter(str.isdigit, v))
+
+        if len(numbers) != 11:
+            raise ValueError("CPF must have 11 digits")
+
+        if len(set(numbers)) == 1:
+            raise ValueError("Invalid CPF")
+
+        sum_of_products = sum(
+            int(a) * b for a, b in zip(numbers[0:9], range(10, 1, -1))
+        )
+        expected_digit = (sum_of_products * 10 % 11) % 10
+        if int(numbers[9]) != expected_digit:
+            raise ValueError("Invalid CPF")
+
+        sum_of_products = sum(
+            int(a) * b for a, b in zip(numbers[0:10], range(11, 1, -1))
+        )
+        expected_digit = (sum_of_products * 10 % 11) % 10
+        if int(numbers[10]) != expected_digit:
+            raise ValueError("Invalid CPF")
+
+        return v
+
+
+class Invoice(BaseModel):
+    amount: int = Field(gt=0, lt=10000000000)
+    person: Person
+    due_date: Optional[date] = None
 
 
 class AccountType(str, Enum):
@@ -46,8 +86,40 @@ class InvalidRequestType(Exception):
 
 
 class InvalidRequestData(Exception):
-    def __init__(self, data: dict):
+    def __init__(self, data):
         super().__init__(f"Invalid request data: {data}")
+
+
+###############################################################
+
+
+def get_private_key():
+    return f"""-----BEGIN EC PARAMETERS-----
+{os.getenv("STARKBANK_EC_PARAMETERS")}
+-----END EC PARAMETERS-----
+-----BEGIN EC PRIVATE KEY-----
+{os.getenv("STARKBANK_EC_PRIVATE_KEY")}
+-----END EC PRIVATE KEY-----"""
+
+
+def send_invoice(invoice: Invoice):
+    starkbank.user = starkbank.Project(
+        environment="sandbox",
+        id="5340871184613376",
+        private_key=get_private_key(),
+    )
+
+    starkbank_invoice = starkbank.Invoice(
+        amount=invoice.amount,
+        due=invoice.due_date,
+        name=invoice.person.name,
+        tax_id=invoice.person.cpf,
+    )
+
+    starkbank.invoice.create([starkbank_invoice])
+
+
+###############################################################
 
 
 class QueueWithRetry:
@@ -67,7 +139,8 @@ class QueueWithRetry:
             message = json.loads(body)
             request_type = str(message.get("type"))
 
-            if request_type not in ["transfer"]:
+            # test type
+            if request_type not in ["invoice"]:
                 raise InvalidRequestType(request_type)
 
             headers = properties.headers or {}
@@ -81,22 +154,20 @@ class QueueWithRetry:
             # ACTUAL CODE
 
             try:
-                transfer = Transfer(**message["data"])
-                print(transfer)
+                invoice = Invoice(**message.get("data"))
             except:
-                raise InvalidRequestData(message["data"])
+                raise InvalidRequestData(message.get("data"))
 
-            print(f"Processing message (attempt {retry_count + 1}/3): {body}")
+            print(
+                f"Processing message (attempt {retry_count + 1}/3): {body}", flush=True
+            )
+            print(invoice, flush=True)
 
-            from datetime import datetime
+            send_invoice(invoice)
 
-            print(datetime.now(), flush=True)
-            print(body, flush=True)
-            message_data = json.loads(body)
-            if "fail" in message_data:
-                raise Exception("Message failed")
+            print(f"Successfully processed message: {body}", flush=True)
 
-            print(f"Successfully processed message: {body}")
+            # ack
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         except json.JSONDecodeError:
