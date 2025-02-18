@@ -10,6 +10,7 @@ from datetime import date
 from typing import Optional
 import starkbank
 import re
+import threading
 
 load_dotenv()
 
@@ -163,6 +164,9 @@ class QueueWithRetry:
             )
             print(invoice, flush=True)
 
+            if retry_count == 0:
+                time.sleep(random.randint(0, 2000) / 1000)
+
             send_invoice(invoice)
 
             print(f"Successfully processed message: {body}", flush=True)
@@ -297,8 +301,37 @@ class QueueWithRetry:
                     self.connection.close()
 
 
-if __name__ == "__main__":
-    consumer = QueueWithRetry(
-        queue_name="task_queue",
+def start_consumer(queue_name: str):
+    consumer = QueueWithRetry(queue_name)
+    consumer.connect()
+    consumer.channel.basic_qos(prefetch_count=1)
+    consumer.channel.basic_consume(
+        queue=queue_name, on_message_callback=consumer.callback
     )
-    consumer.start_consuming()
+    try:
+        print(f"Started consumer for queue: {queue_name}", flush=True)
+        consumer.channel.start_consuming()
+    except Exception as e:
+        print(f"Consumer error: {str(e)}", flush=True)
+        if consumer.connection and not consumer.connection.is_closed:
+            consumer.connection.close()
+
+
+if __name__ == "__main__":
+    num_consumers = int(os.getenv("NUM_CONSUMERS_PER_INSTANCE", "3"))
+    queue_name = os.getenv("QUEUE_NAME")
+
+    print(f"Starting {num_consumers} consumers...", flush=True)
+
+    # Create consumer threads
+    threads = []
+    for i in range(num_consumers):
+        thread = threading.Thread(target=start_consumer, args=(queue_name,))
+        thread.daemon = True
+        threads.append(thread)
+        thread.start()
+        print(f"Started consumer thread {i+1}", flush=True)
+
+    # Wait for all threads
+    for thread in threads:
+        thread.join()
