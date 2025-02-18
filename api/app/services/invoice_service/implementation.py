@@ -1,25 +1,22 @@
-import starkbank
 from app.models.types import Invoice
 from app.services.invoice_service.interface import InvoiceSender
+from app.services.queue_service.interface import QueueService
 
 
-class StarkBankInvoiceSender(InvoiceSender):
-    def __init__(self, starkbank_project: starkbank.Project):
-        self.starkbank_project = starkbank_project
+class QueueInvoiceSender(InvoiceSender):
+    def __init__(self, queue_service: QueueService):
+        self.queue_service = queue_service
 
-    def send_batch(self, invoices: list[Invoice]):
-        stark_invoices = [
-            self.__convert_to_starkbank_invoice(invoice) for invoice in invoices
-        ]
-        starkbank.invoice.create(stark_invoices, user=self.starkbank_project)
+    def send(self, invoice: Invoice) -> bool:
+        invoice_message = self.__convert_to_message(invoice)
+        return self.queue_service.publish_message(invoice_message)
 
-    def send(self, invoice: Invoice):
-        self.send_batch([invoice])
+    def send_batch(self, invoices: list[Invoice]) -> list[bool]:
+        invoice_messages = [self.__convert_to_message(invoice) for invoice in invoices]
+        return self.queue_service.publish_messages(invoice_messages)
 
-    def __convert_to_starkbank_invoice(self, invoice: Invoice) -> starkbank.Invoice:
-        return starkbank.Invoice(
-            amount=invoice.amount,
-            name=invoice.person.name,
-            tax_id=invoice.person.cpf,
-            due=invoice.due_date,
-        )
+    def __convert_to_message(self, invoice: Invoice):
+        return {
+            "type": "invoice",
+            "data": invoice.model_dump(),
+        }
