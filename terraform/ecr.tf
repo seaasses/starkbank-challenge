@@ -1,27 +1,17 @@
-# ECR Repository
-resource "aws_ecr_repository" "main" {
-  name = var.app_name
+# ECR Repository for API
+resource "aws_ecr_repository" "api" {
+  name = "${var.app_name}-api"
+  force_delete = true
   image_scanning_configuration {
     scan_on_push = true
   }
 }
 
-# Add lifecycle policy to keep only recent images
-resource "aws_ecr_lifecycle_policy" "main" {
-  repository = aws_ecr_repository.main.name
-
-  policy = jsonencode({
-    rules = [{
-      rulePriority = 1
-      description  = "Keep last 5 images"
-      selection = {
-        tagStatus   = "any"
-        countType   = "imageCountMoreThan"
-        countNumber = 5
-      }
-      action = {
-        type = "expire"
-      }
-    }]
-  })
-} 
+# ECR Repository for Queue Consumer
+resource "aws_ecr_repository" "queue" {
+  name = "${var.app_name}-queue"
+  force_delete = true
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}

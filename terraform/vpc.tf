@@ -50,15 +50,40 @@ resource "aws_security_group" "alb" {
 
 # Security group for ECS tasks
 resource "aws_security_group" "ecs_tasks" {
-  name        = "${var.app_name}-ecs-tasks-sg"
-  description = "Security group for ECS tasks"
+  name        = "${var.app_name}-ecs-tasks"
+  description = "Allow inbound traffic for ECS tasks"
   vpc_id      = module.vpc.vpc_id
 
   ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
-    protocol        = "tcp"
+    description = "Allow inbound HTTP traffic"
+    from_port   = var.container_port
+    to_port     = var.container_port
+    protocol    = "tcp"
     security_groups = [aws_security_group.alb.id]
+  }
+
+  ingress {
+    description = "Allow inbound RabbitMQ traffic"
+    from_port   = 5672
+    to_port     = 5672
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description = "Allow DNS UDP"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    self        = true
+  }
+
+  ingress {
+    description = "Allow DNS TCP"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    self        = true
   }
 
   egress {
@@ -66,6 +91,14 @@ resource "aws_security_group" "ecs_tasks" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.app_name}-ecs-tasks"
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -87,5 +120,9 @@ resource "aws_security_group" "redis" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 } 

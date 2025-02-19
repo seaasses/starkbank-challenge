@@ -7,6 +7,12 @@ resource "aws_lb" "main" {
   subnets            = module.vpc.public_subnets
 
   enable_deletion_protection = false
+
+  tags = {
+    Environment = var.environment
+  }
+
+  depends_on = [aws_security_group.alb]
 }
 
 # Target Group
@@ -18,17 +24,18 @@ resource "aws_lb_target_group" "app" {
   target_type = "ip"
 
   health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    protocol            = "HTTP"
-    matcher             = "200"
-    timeout             = 5
-    path                = "/health"
-    unhealthy_threshold = 5
+    healthy_threshold   = "3"
+    interval           = "30"
+    protocol           = "HTTP"
+    matcher            = "200"
+    timeout            = "3"
+    path              = "/health"
+    unhealthy_threshold = "2"
   }
 
   deregistration_delay = 60
+
+  depends_on = [aws_lb.main]
 }
 
 # ACM Certificate
@@ -82,7 +89,7 @@ resource "aws_lb_listener" "https" {
     target_group_arn = aws_lb_target_group.app.arn
   }
 
-  depends_on = [aws_acm_certificate_validation.main]
+  depends_on = [aws_lb.main, aws_lb_target_group.app, aws_acm_certificate.main]
 }
 
 # HTTP to HTTPS Redirect
@@ -100,6 +107,8 @@ resource "aws_lb_listener" "http" {
       status_code = "HTTP_301"
     }
   }
+
+  depends_on = [aws_lb.main]
 }
 
 # Route53 Record for the ALB
