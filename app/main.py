@@ -11,6 +11,7 @@ from app.jobs.transfer_starkbank_undelivered_credited_invoices import (
     transfer_starkbank_undelivered_credited_invoices,
 )
 from app.jobs.invoice_random_people import invoice_random_people
+from app.services.thread_lock.implementation import RedisThreadLock
 import time
 
 scheduler = BackgroundScheduler()
@@ -39,9 +40,8 @@ async def lifespan(app: FastAPI):
 
     main_thread = False
     if webhook_id is None:
-        if redis_client.set(WEBHOOK_LOCK_KEY, "1", nx=True, ex=30):
-            # this is the main worker on all workers/instances
-            # it will create the webhook and run the jobs
+        thread_lock = RedisThreadLock(redis_client)
+        if thread_lock.lock(WEBHOOK_LOCK_KEY):
             main_thread = True
             webhooks = starkbank.webhook.query()
             for webhook in webhooks:
@@ -59,17 +59,23 @@ async def lifespan(app: FastAPI):
             if webhook_id:
                 redis_client.set(WEBHOOK_ID_KEY, webhook_id)
 
-            # 01:00 AM (UTC-3)
-            # TODO: as env variable
-            scheduler.add_job(
-                transfer_starkbank_undelivered_credited_invoices, "cron", hour=1
-            )
+            thread_lock.unlock(WEBHOOK_LOCK_KEY)
 
-            scheduler.add_job(
-                lambda: invoice_random_people(n_min=8, n_max=8), "interval", minutes=6
-            )
+    scheduler.add_job(
+        lambda: transfer_starkbank_undelivered_credited_invoices(
+            RedisThreadLock(redis_client)
+        ),
+        "cron",
+        hour=1,
+    )
 
-            scheduler.start()
+    scheduler.add_job(
+        lambda: invoice_random_people(8, 12, RedisThreadLock(redis_client)),
+        "interval",
+        hours=3,
+    )
+
+    scheduler.start()
 
     # the other threads will wait for the webhook ID to be set
     get_webhook_id_attempts = 0
@@ -85,15 +91,11 @@ async def lifespan(app: FastAPI):
         raise Exception("Could not get webhook ID")
 
     print(f"Using webhook with ID: {webhook_id}")
-    print('baakda')
 
     yield
+    scheduler.shutdown()
 
     if main_thread:
-
-        # only the main thread started the scheduler
-        scheduler.shutdown()
-
         if settings.ENVIRONMENT == "development":
             print("Cleaning up Starkbank Invoices Webhook")
             redis_client.delete(WEBHOOK_ID_KEY)
