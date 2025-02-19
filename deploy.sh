@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+# TODO: github action to deploy
 
 echo "Setting up deployment variables..."
 AWS_REGION="us-east-1"
