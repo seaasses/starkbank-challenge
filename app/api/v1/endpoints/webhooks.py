@@ -71,12 +71,17 @@ async def validate_signature(
         raise HTTPException(status_code=401, detail="Unauthorized: Invalid signature")
 
 
+def valid_workspace(schema: WebhookRequest):
+    return schema.event.workspaceId == settings.STARK_PROJECT_ID
+
+
 @router.post(
     "/starkbank",
     dependencies=[
         Depends(validate_signature),
         Depends(validate_event_age),
         Depends(validate_not_already_processed),
+        Depends(valid_workspace),
     ],
 )
 async def starkbank_webhook(
