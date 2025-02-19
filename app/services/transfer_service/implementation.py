@@ -20,4 +20,10 @@ class StarkBankTransferSender(TransferSender):
             name=transfer.account.name,
             tax_id=transfer.account.tax_id,
             amount=transfer.amount,
+            rules=[
+                starkbank.transfer.Rule(
+                    key="resendingLimit",
+                    value=5,
+                )
+            ],
         )
