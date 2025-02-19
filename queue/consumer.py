@@ -217,8 +217,8 @@ class QueueWithRetry:
 
     def connect(self):
         """Establish connection to RabbitMQ with retry logic"""
-        max_retries = 5
-        retry_delay = 5
+        max_retries = 10
+        retry_delay = 6
 
         for attempt in range(max_retries):
             try:
