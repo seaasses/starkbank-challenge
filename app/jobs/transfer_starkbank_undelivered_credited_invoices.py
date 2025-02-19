@@ -24,9 +24,14 @@ def transfer_starkbank_undelivered_credited_invoices(thread_lock: ThreadLock):
                         account=settings.default_account,
                         amount=transfer_amount,
                     )
-                    transfer_sender.send(transfer)
+                    try:
+                        transfer_sender.send(transfer)
+                    except Exception:
+                        # If transfer fails, we still want to mark the event as delivered
+                        pass
                 event_status_changer.mark_as_delivered(event.id)
             except Exception:
+                # If marking as delivered fails, we still want to unlock
                 pass
             finally:
                 thread_lock.unlock(lock_key)

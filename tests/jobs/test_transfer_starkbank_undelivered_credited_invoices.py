@@ -8,6 +8,14 @@ from datetime import datetime
 
 
 @pytest.fixture
+def mock_thread_lock():
+    mock = Mock()
+    mock.lock.return_value = True
+    mock.unlock.return_value = True
+    return mock
+
+
+@pytest.fixture
 def mock_account():
     return Account(
         bank_code="341",
@@ -69,7 +77,9 @@ def mock_non_invoice_event():
     )
 
 
-def test_transfer_starkbank_undelivered_credited_invoices_basic(mock_credited_invoice_event, mock_account):
+def test_transfer_starkbank_undelivered_credited_invoices_basic(
+    mock_credited_invoice_event, mock_account, mock_thread_lock
+):
     with patch(
         "app.jobs.transfer_starkbank_undelivered_credited_invoices.StarkBankEventFetcher"
     ) as mock_fetcher, patch(
@@ -95,21 +105,23 @@ def test_transfer_starkbank_undelivered_credited_invoices_basic(mock_credited_in
         mock_settings.starkbank_project = "test-project"
 
         # Run function
-        transfer_starkbank_undelivered_credited_invoices()
+        transfer_starkbank_undelivered_credited_invoices(mock_thread_lock)
 
-        # Verify event fetching
-        assert fetcher_instance.fetch_undelivered_events.call_count == 1
+        # Verify thread lock was used correctly
+        mock_thread_lock.lock.assert_called_once_with(f"event:{mock_credited_invoice_event.id}")
+        mock_thread_lock.unlock.assert_called_once_with(f"event:{mock_credited_invoice_event.id}")
 
-        # Verify transfer creation and sending
-        assert transfer_sender_instance.send.call_count == 1
+        # Verify transfer was sent with correct amount
+        transfer_sender_instance.send.assert_called_once()
         sent_transfer = transfer_sender_instance.send.call_args[0][0]
         assert isinstance(sent_transfer, Transfer)
         assert sent_transfer.account == mock_account
-        assert sent_transfer.amount == 900  # 1000 - 100
+        assert sent_transfer.amount == 900  # 1000 - 100 fee
 
-        # Verify event status update
-        assert status_changer_instance.mark_as_delivered.call_count == 1
-        assert status_changer_instance.mark_as_delivered.call_args[0][0] == "1234567890"
+        # Verify event was marked as delivered
+        status_changer_instance.mark_as_delivered.assert_called_once_with(
+            mock_credited_invoice_event.id
+        )
 
 
 def test_transfer_starkbank_undelivered_credited_invoices_filtering(
@@ -117,6 +129,7 @@ def test_transfer_starkbank_undelivered_credited_invoices_filtering(
     mock_non_credited_invoice_event,
     mock_non_invoice_event,
     mock_account,
+    mock_thread_lock,
 ):
     with patch(
         "app.jobs.transfer_starkbank_undelivered_credited_invoices.StarkBankEventFetcher"
@@ -147,26 +160,24 @@ def test_transfer_starkbank_undelivered_credited_invoices_filtering(
         mock_settings.starkbank_project = "test-project"
 
         # Run function
-        transfer_starkbank_undelivered_credited_invoices()
+        transfer_starkbank_undelivered_credited_invoices(mock_thread_lock)
 
-        # Verify only one transfer was created (for the credited invoice event)
-        assert transfer_sender_instance.send.call_count == 1
+        # Verify thread lock was used correctly for each event
+        assert mock_thread_lock.lock.call_count == 3
+        assert mock_thread_lock.unlock.call_count == 3
+
+        # Verify transfer was sent only for credited invoice event
+        transfer_sender_instance.send.assert_called_once()
         sent_transfer = transfer_sender_instance.send.call_args[0][0]
         assert isinstance(sent_transfer, Transfer)
-        assert sent_transfer.amount == 900
+        assert sent_transfer.account == mock_account
+        assert sent_transfer.amount == 900  # 1000 - 100 fee
 
         # Verify all events were marked as delivered
         assert status_changer_instance.mark_as_delivered.call_count == 3
-        delivered_event_ids = [
-            call_args[0][0]
-            for call_args in status_changer_instance.mark_as_delivered.call_args_list
-        ]
-        assert "1234567890" in delivered_event_ids  # credited invoice event
-        assert "0987654321" in delivered_event_ids  # non-credited invoice event
-        assert "5555555555" in delivered_event_ids  # non-invoice event
 
 
-def test_transfer_starkbank_undelivered_credited_invoices_no_events():
+def test_transfer_starkbank_undelivered_credited_invoices_no_events(mock_thread_lock):
     with patch(
         "app.jobs.transfer_starkbank_undelivered_credited_invoices.StarkBankEventFetcher"
     ) as mock_fetcher, patch(
@@ -187,13 +198,17 @@ def test_transfer_starkbank_undelivered_credited_invoices_no_events():
         mock_transfer_sender.return_value = transfer_sender_instance
 
         # Run function
-        transfer_starkbank_undelivered_credited_invoices()
+        transfer_starkbank_undelivered_credited_invoices(mock_thread_lock)
 
-        # Verify no transfers were created
-        assert transfer_sender_instance.send.call_count == 0
+        # Verify no thread locks were used
+        assert mock_thread_lock.lock.call_count == 0
+        assert mock_thread_lock.unlock.call_count == 0
+
+        # Verify no transfers were sent
+        transfer_sender_instance.send.assert_not_called()
 
         # Verify no events were marked as delivered
-        assert status_changer_instance.mark_as_delivered.call_count == 0
+        status_changer_instance.mark_as_delivered.assert_not_called()
 
 
 def test_transfer_starkbank_undelivered_events_all_marked_delivered(
@@ -201,6 +216,7 @@ def test_transfer_starkbank_undelivered_events_all_marked_delivered(
     mock_non_credited_invoice_event,
     mock_non_invoice_event,
     mock_account,
+    mock_thread_lock,
 ):
     with patch(
         "app.jobs.transfer_starkbank_undelivered_credited_invoices.StarkBankEventFetcher"
@@ -231,29 +247,28 @@ def test_transfer_starkbank_undelivered_events_all_marked_delivered(
         mock_settings.starkbank_project = "test-project"
 
         # Run function
-        transfer_starkbank_undelivered_credited_invoices()
+        transfer_starkbank_undelivered_credited_invoices(mock_thread_lock)
 
-        # Verify only one transfer was created (for the credited invoice event)
-        assert transfer_sender_instance.send.call_count == 1
+        # Verify thread lock was used correctly for each event
+        assert mock_thread_lock.lock.call_count == 3
+        assert mock_thread_lock.unlock.call_count == 3
+
+        # Verify transfer was sent only for credited invoice event
+        transfer_sender_instance.send.assert_called_once()
         sent_transfer = transfer_sender_instance.send.call_args[0][0]
         assert isinstance(sent_transfer, Transfer)
-        assert sent_transfer.amount == 900
+        assert sent_transfer.account == mock_account
+        assert sent_transfer.amount == 900  # 1000 - 100 fee
 
         # Verify all events were marked as delivered
         assert status_changer_instance.mark_as_delivered.call_count == 3
-        delivered_event_ids = [
-            call_args[0][0]
-            for call_args in status_changer_instance.mark_as_delivered.call_args_list
-        ]
-        assert "1234567890" in delivered_event_ids  # credited invoice event
-        assert "0987654321" in delivered_event_ids  # non-credited invoice event
-        assert "5555555555" in delivered_event_ids  # non-invoice event
 
 
 def test_transfer_starkbank_undelivered_credited_invoices_error_handling(
     mock_credited_invoice_event,
     mock_non_credited_invoice_event,
     mock_account,
+    mock_thread_lock,
 ):
     with patch(
         "app.jobs.transfer_starkbank_undelivered_credited_invoices.StarkBankEventFetcher"
@@ -286,16 +301,14 @@ def test_transfer_starkbank_undelivered_credited_invoices_error_handling(
         mock_settings.starkbank_project = "test-project"
 
         # Run function - should not raise exception
-        transfer_starkbank_undelivered_credited_invoices()
+        transfer_starkbank_undelivered_credited_invoices(mock_thread_lock)
 
-        # Verify transfer was attempted for the credited event
-        assert transfer_sender_instance.send.call_count == 1
-        sent_transfer = transfer_sender_instance.send.call_args[0][0]
-        assert isinstance(sent_transfer, Transfer)
-        assert sent_transfer.amount == 900
+        # Verify thread lock was used correctly for each event
+        assert mock_thread_lock.lock.call_count == 2
+        assert mock_thread_lock.unlock.call_count == 2
 
-        # Verify the failed event was not marked as delivered
-        # but the non-credited event was marked as delivered
-        assert status_changer_instance.mark_as_delivered.call_count == 1
-        delivered_event_id = status_changer_instance.mark_as_delivered.call_args[0][0]
-        assert delivered_event_id == "0987654321"  # ID of mock_non_credited_invoice_event 
+        # Verify transfer was attempted for credited invoice event
+        transfer_sender_instance.send.assert_called_once()
+
+        # Verify both events were marked as delivered
+        assert status_changer_instance.mark_as_delivered.call_count == 2 

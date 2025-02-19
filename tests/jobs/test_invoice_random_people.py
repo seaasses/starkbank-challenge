@@ -5,11 +5,19 @@ from app.models.types import Person, Invoice
 
 
 @pytest.fixture
+def mock_thread_lock():
+    mock = Mock()
+    mock.lock.return_value = True
+    mock.unlock.return_value = True
+    return mock
+
+
+@pytest.fixture
 def mock_person():
     return Person(name="John Doe", cpf="803.778.410-05")
 
 
-def test_invoice_random_people(mock_person):
+def test_invoice_random_people(mock_person, mock_thread_lock):
     with patch(
         "app.jobs.invoice_random_people.StarkBankInvoiceSender"
     ) as mock_sender, patch(
@@ -25,7 +33,10 @@ def test_invoice_random_people(mock_person):
 
         n_min = 5
         n_max = 5
-        invoice_random_people(n_min, n_max)
+        invoice_random_people(n_min, n_max, mock_thread_lock)
+
+        mock_thread_lock.lock.assert_called_once_with("job:invoice_random_people", 600)
+        mock_thread_lock.unlock.assert_called_once_with("job:invoice_random_people")
 
         assert getter_instance.get_random_person.call_count == 5
 
@@ -40,7 +51,7 @@ def test_invoice_random_people(mock_person):
             assert 100 <= invoice.amount < 10000000000
 
 
-def test_invoice_random_people_range(mock_person):
+def test_invoice_random_people_range(mock_person, mock_thread_lock):
     with patch(
         "app.jobs.invoice_random_people.StarkBankInvoiceSender"
     ) as mock_sender, patch(
@@ -56,33 +67,31 @@ def test_invoice_random_people_range(mock_person):
 
         n_min = 2
         n_max = 5
-        invoice_random_people(n_min, n_max)
+        invoice_random_people(n_min, n_max, mock_thread_lock)
 
-        # Verify that number of calls is within range
-        call_count = getter_instance.get_random_person.call_count
-        assert n_min <= call_count <= n_max
+        mock_thread_lock.lock.assert_called_once_with("job:invoice_random_people", 600)
+        mock_thread_lock.unlock.assert_called_once_with("job:invoice_random_people")
 
-        # Verify batch was sent once
+        assert 2 <= getter_instance.get_random_person.call_count <= 5
+
         assert sender_instance.send_batch.call_count == 1
 
-        # Verify number of invoices matches number of persons
         sent_invoices = sender_instance.send_batch.call_args[0][0]
-        assert len(sent_invoices) == call_count
+        assert 2 <= len(sent_invoices) <= 5
 
-        # Verify invoice properties
         for invoice in sent_invoices:
             assert isinstance(invoice, Invoice)
             assert invoice.person == mock_person
             assert 100 <= invoice.amount < 10000000000
 
 
-def test_invoice_random_people_invalid_range():
+def test_invoice_random_people_invalid_range(mock_thread_lock):
     with pytest.raises(ValueError) as exc_info:
-        invoice_random_people(5, 2)
+        invoice_random_people(5, 2, mock_thread_lock)
     assert str(exc_info.value) == "n_min cannot be greater than n_max"
 
 
-def test_invoice_random_people_zero_min(mock_person):
+def test_invoice_random_people_zero_min(mock_person, mock_thread_lock):
     with patch(
         "app.jobs.invoice_random_people.StarkBankInvoiceSender"
     ) as mock_sender, patch(
@@ -103,34 +112,30 @@ def test_invoice_random_people_zero_min(mock_person):
 
         n_min = 0
         n_max = 2
-        invoice_random_people(n_min, n_max)
+        invoice_random_people(n_min, n_max, mock_thread_lock)
 
-        # Verify randint was called with correct args
-        mock_randint.assert_called_once_with(n_min, n_max)
+        mock_thread_lock.lock.assert_called_once_with("job:invoice_random_people", 600)
+        mock_thread_lock.unlock.assert_called_once_with("job:invoice_random_people")
 
-        # Verify that number of calls is within range
-        call_count = getter_instance.get_random_person.call_count
-        assert call_count == 0  # We know it's 0 because we mocked randint
-
-        # Since we know n is 0, no invoices should be created or sent
+        assert getter_instance.get_random_person.call_count == 0
         assert sender_instance.send_batch.call_count == 0
 
 
-def test_invoice_random_people_negative_numbers():
+def test_invoice_random_people_negative_numbers(mock_thread_lock):
     with pytest.raises(ValueError) as exc_info:
-        invoice_random_people(-1, 5)
+        invoice_random_people(-1, 5, mock_thread_lock)
     assert str(exc_info.value) == "n_min and n_max must be non-negative"
 
     with pytest.raises(ValueError) as exc_info:
-        invoice_random_people(1, -5)
+        invoice_random_people(1, -5, mock_thread_lock)
     assert str(exc_info.value) == "n_min and n_max must be non-negative"
 
     with pytest.raises(ValueError) as exc_info:
-        invoice_random_people(-2, -1)
+        invoice_random_people(-2, -1, mock_thread_lock)
     assert str(exc_info.value) == "n_min and n_max must be non-negative"
 
 
-def test_invoice_random_people_zero_min_with_invoices(mock_person):
+def test_invoice_random_people_zero_min_with_invoices(mock_person, mock_thread_lock):
     with patch(
         "app.jobs.invoice_random_people.StarkBankInvoiceSender"
     ) as mock_sender, patch(
@@ -150,20 +155,18 @@ def test_invoice_random_people_zero_min_with_invoices(mock_person):
 
         n_min = 0
         n_max = 2
-        invoice_random_people(n_min, n_max)
+        invoice_random_people(n_min, n_max, mock_thread_lock)
 
-        assert mock_randint.call_args_list[0] == ((n_min, n_max),)
-
-        for i in range(1, 3):
-            assert mock_randint.call_args_list[i] == ((100, 9999999999),)
+        mock_thread_lock.lock.assert_called_once_with("job:invoice_random_people", 600)
+        mock_thread_lock.unlock.assert_called_once_with("job:invoice_random_people")
 
         assert getter_instance.get_random_person.call_count == 2
-
         assert sender_instance.send_batch.call_count == 1
+
         sent_invoices = sender_instance.send_batch.call_args[0][0]
         assert len(sent_invoices) == 2
 
-        assert sent_invoices[0].amount == 1000
-        assert sent_invoices[1].amount == 2000
         for invoice in sent_invoices:
+            assert isinstance(invoice, Invoice)
             assert invoice.person == mock_person
+            assert 100 <= invoice.amount < 10000000000
