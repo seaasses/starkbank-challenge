@@ -63,7 +63,7 @@ services:
   queue_consumer:
     build:
       context: ./queue/
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     env_file:
       - .env
     environment:
