@@ -71,8 +71,8 @@ async def lifespan(app: FastAPI):
 
     scheduler.add_job(
         lambda: invoice_random_people(8, 12, RedisThreadLock(redis_client)),
-        "interval",
-        hours=3,
+        "cron",
+        hour="0,3,6,9,12,15,18,21",
     )
 
     scheduler.start()
