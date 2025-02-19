@@ -2,7 +2,7 @@ from app.services.starkbank_event_services.implementation import (
     StarkBankEventFetcher,
     StarkBankEventStatusChanger,
 )
-from app.services.transfer_service.implementation import StarkBankTransferSender
+from app.services.transfer_service.implementation import QueueTransferSender
 from app.models.types import Transfer
 from app.core.config import settings
 
@@ -10,7 +10,7 @@ from app.core.config import settings
 def transfer_starkbank_undelivered_credited_invoices():
     event_fetcher = StarkBankEventFetcher(settings.starkbank_project)
     event_status_changer = StarkBankEventStatusChanger(settings.starkbank_project)
-    transfer_sender = StarkBankTransferSender(settings.starkbank_project)
+    transfer_sender = QueueTransferSender(settings.starkbank_project)
     for event in event_fetcher.fetch_undelivered_events():
         try:
             if event.subscription == "invoice" and event.log["type"] == "credited":

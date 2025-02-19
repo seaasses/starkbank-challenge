@@ -1,23 +1,20 @@
 import starkbank
 from app.models.types import Transfer
 from app.services.transfer_service.interface import TransferSender
+from app.services.queue_service.interface import QueueService
 
 
-class StarkBankTransferSender(TransferSender):
-    def __init__(self, starkbank_project: starkbank.Project):
-        self.starkbank_project = starkbank_project
+class QueueTransferSender(TransferSender):
+    def __init__(self, queue_service: QueueService):
+        self.queue_service = queue_service
 
     def send(self, transfer: Transfer):
-        transfer = self.__converto_to_starkbank_transfer(transfer)
-        starkbank.transfer.create([transfer], user=self.starkbank_project)
+        transfer_message = self.__converto_to_message(transfer)
+        self.queue_service.publish_message(transfer_message)
 
-    def __converto_to_starkbank_transfer(self, transfer: Transfer):
-        return starkbank.Transfer(
-            bank_code=transfer.account.bank_code,
-            branch_code=transfer.account.branch,
-            account_number=transfer.account.account,
-            account_type=transfer.account.account_type,
-            name=transfer.account.name,
-            tax_id=transfer.account.tax_id,
-            amount=transfer.amount,
-        )
+    def __converto_to_message(self, transfer: Transfer):
+        return {
+            "type": "transfer",
+            "status": "pending_creation",
+            "data": {"transfer": transfer.model_dump()},
+        }

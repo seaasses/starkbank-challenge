@@ -33,12 +33,11 @@ async def lifespan(app: FastAPI):
     webhook_url = settings.starkbank_invoices_webhook_url
     webhook_id = None
 
-    webhook_id = redis_client.get(WEBHOOK_ID_KEY)
-    if webhook_id:
-        webhook_id = webhook_id.decode("utf-8")
-
     main_thread = False
     if webhook_id is None:
+        print(
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        )
         if redis_client.set(WEBHOOK_LOCK_KEY, "1", nx=True, ex=30):
             # this is the main worker on all workers/instances
             # it will create the webhook and run the jobs
@@ -66,7 +65,9 @@ async def lifespan(app: FastAPI):
             )
 
             scheduler.add_job(
-                lambda: invoice_random_people(n_min=8, n_max=8), "interval", minutes=6
+                lambda: invoice_random_people(n_min=8, n_max=12),
+                "interval",
+                minutes=1,
             )
 
             scheduler.start()
@@ -85,7 +86,7 @@ async def lifespan(app: FastAPI):
         raise Exception("Could not get webhook ID")
 
     print(f"Using webhook with ID: {webhook_id}")
-    print('baakda')
+    print("baakda")
 
     yield
 

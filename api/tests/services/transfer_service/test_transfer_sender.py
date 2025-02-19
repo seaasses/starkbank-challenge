@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from app.models.types import Transfer, Account, AccountType
-from app.services.transfer_service.implementation import StarkBankTransferSender
+from app.services.transfer_service.implementation import QueueTransferSender
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def mock_starkbank_project():
 def test_send_converts_to_starkbank_transfer(mock_account, mock_starkbank_project):
     with patch("starkbank.transfer.create") as mock_create:
         transfer = Transfer(account=mock_account, amount=1000)
-        sender = StarkBankTransferSender(mock_starkbank_project)
+        sender = QueueTransferSender(mock_starkbank_project)
         sender.send(transfer)
 
         mock_create.assert_called_once()
@@ -44,7 +44,7 @@ def test_send_converts_to_starkbank_transfer(mock_account, mock_starkbank_projec
 def test_send_uses_correct_project(mock_account, mock_starkbank_project):
     with patch("starkbank.transfer.create") as mock_create:
         transfer = Transfer(account=mock_account, amount=1000)
-        sender = StarkBankTransferSender(mock_starkbank_project)
+        sender = QueueTransferSender(mock_starkbank_project)
         sender.send(transfer)
 
         mock_create.assert_called_once()
@@ -56,7 +56,7 @@ def test_send_handles_api_error(mock_account, mock_starkbank_project):
         mock_create.side_effect = Exception("API Error")
 
         transfer = Transfer(account=mock_account, amount=1000)
-        sender = StarkBankTransferSender(mock_starkbank_project)
+        sender = QueueTransferSender(mock_starkbank_project)
 
         with pytest.raises(Exception) as exc_info:
             sender.send(transfer)
@@ -75,7 +75,7 @@ def test_send_with_hyphenated_account(mock_starkbank_project):
 
     with patch("starkbank.transfer.create") as mock_create:
         transfer = Transfer(account=account, amount=1000)
-        sender = StarkBankTransferSender(mock_starkbank_project)
+        sender = QueueTransferSender(mock_starkbank_project)
         sender.send(transfer)
 
         mock_create.assert_called_once()

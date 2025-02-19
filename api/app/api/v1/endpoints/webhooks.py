@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.services.starkbank_signature_verifier.implementation import (
     StarkBankSignatureVerifier,
 )
-from app.services.transfer_service.implementation import StarkBankTransferSender
+from app.services.transfer_service.implementation import QueueTransferSender
 
 router = APIRouter()
 
@@ -86,7 +86,7 @@ async def starkbank_webhook(
     if schema.event.subscription != "invoice" or schema.event.log["type"] != "credited":
         return
 
-    transfer_sender = StarkBankTransferSender(settings.starkbank_project)
+    transfer_sender = QueueTransferSender(settings.starkbank_project)
     transfer_amount = (
         schema.event.log["invoice"]["amount"] - schema.event.log["invoice"]["fee"]
     )
