@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from app.api.v1.endpoints import webhooks
 from app.api.v1.endpoints import health
+from app.api.v1.endpoints import index
 import starkbank
 import redis
 from app.core.config import settings
@@ -109,6 +110,7 @@ app = FastAPI(
 )
 
 # Include routers
+app.include_router(index.router, tags=["index"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 app.include_router(health.router, prefix="/health", tags=["health"])
 
