@@ -2,6 +2,7 @@ from fastapi import APIRouter, Response
 
 router = APIRouter()
 
+
 @router.get("/")
 async def root():
     html_content = """
@@ -82,6 +83,7 @@ async def root():
             <li>Redis for distributed caching and locking</li>
             <li>Docker for containerization</li>
             <li>AWS (ECR, ECS, Elasticache) for deployment</li>
+            <li>Terraform for infrastructure as code</li>
         </ul>
 
         <h2>API Endpoints</h2>
@@ -101,4 +103,4 @@ async def root():
     </body>
     </html>
     """
-    return Response(content=html_content, media_type="text/html") 
+    return Response(content=html_content, media_type="text/html")
