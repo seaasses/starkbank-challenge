@@ -35,9 +35,4 @@ services:
       interval: 5s
       timeout: 3s
       retries: 3
-    volumes:
-      - redis_data:/data
     command: redis-server --appendonly yes
-
-volumes:
-  redis_data: 
