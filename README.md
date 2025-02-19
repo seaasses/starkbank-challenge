@@ -37,13 +37,13 @@ The application is deployed at: stark-challenge.com
 1. Clone the repository
 2. Create a `.env` file with the following variables:
    ```
-   ENVIRONMENT=development
-   STARK_ENVIRONMENT=sandbox
-   STARK_PROJECT_ID=your_project_id
-   STARKBANK_EC_PARAMETERS=your_ec_parameters
-   STARKBANK_EC_PRIVATE_KEY=your_private_key
-   API_EXTERNAL_URL=your_api_url # must be https, you can use ngrok or similar to test locally
-   REDIS_URL=redis://redis:6379/0
+    STARK_ENVIRONMENT=sandbox # or production
+    STARK_PROJECT_ID=<your-project-id>
+    STARKBANK_EC_PARAMETERS=<first part of your private key>
+    STARKBANK_EC_PRIVATE_KEY=<last part of your private key>
+    API_EXTERNAL_URL=<your-api-url> # must be https, you can use ngrok or similar to test locally
+    ENVIRONMENT=development # or production (if running on cloud)
+
    ```
 
 3. Run with Docker Compose:
@@ -90,4 +90,3 @@ The application includes:
 - Health check endpoints
 - Docker health checks
 - Redis connection monitoring
-- Webhook processing status
