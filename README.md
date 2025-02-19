@@ -83,8 +83,6 @@ The application is containerized and can be deployed to any cloud provider. Terr
 - Webhook signature verification
 - Event replay attack prevention
 - Distributed locking for scheduled jobs
-- Secure credential management
-- Request validation and sanitization
 
 ## Monitoring
 
