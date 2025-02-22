@@ -54,9 +54,9 @@ async def root():
         <h1>Stark Bank Challenge</h1>
         
         <div class="highlight">
-            <p>Workspace: <code>marcuslacerda.sandbox.starkbank.com</code><br>
+            <p>Workspace: <code><a href="https://marcuslacerda.sandbox.starkbank.com">marcuslacerda.sandbox.starkbank.com</a></code><br>
             Domain: <code><a href="https://stark-challenge.com">stark-challenge.com</a></code><br>
-            GitHub: <a href="https://github.com/seaasses/starkbank-challenge">seaasses/starkbank-challenge</a></p>
+            GitHub: <code><a href="https://github.com/seaasses/starkbank-challenge">seaasses/starkbank-challenge</a></code></p>
         </div>
 
         <h2>Project Overview</h2>
